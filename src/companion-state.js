@@ -1,8 +1,10 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { getClaudeDir } from "./config.js";
-import { getCompanionFromConfig, resolveClaudeState } from "./claude-state.js";
+import { rollFrom } from "./buddy-engine.js";
+import { getCompanionFromConfig, getUuidFromConfig, resolveClaudeState } from "./claude-state.js";
 import { renderSprite } from "./sprites.js";
+import { STARS } from "./config.js";
 
 function padLine(value, width) {
   return `${value}${" ".repeat(Math.max(0, width - value.length))}`;
@@ -75,6 +77,15 @@ function findLatestCompanionIntro() {
   return null;
 }
 
+function renderStatBar(value) {
+  const filled = Math.max(0, Math.min(10, Math.floor(value / 10)));
+  return `${"█".repeat(filled)}${"░".repeat(10 - filled)}`;
+}
+
+function rarityLabel(rarity) {
+  return `${STARS[rarity]} ${rarity.toUpperCase()}`;
+}
+
 export function getCurrentCompanion() {
   const { config } = resolveClaudeState({ allowLegacyUserId: true });
   const companion = getCompanionFromConfig(config);
@@ -84,31 +95,41 @@ export function getCurrentCompanion() {
   const intro = findLatestCompanionIntro();
   return {
     ...companion,
+    uuid: getUuidFromConfig(config, { allowLegacyUserId: true }),
     species: intro?.name === companion.name ? intro.species : null
   };
 }
 
 export function formatCompanionSummary(companion) {
-  const species = companion.species || "unknown";
-  const sprite = renderSprite(species === "unknown" ? "cat" : species, "°", "none").split("\n");
+  const buddy = rollFrom(companion.uuid);
+  const sprite = renderSprite(buddy.species, buddy.eye, buddy.hat).split("\n");
+  const rarityLine = `${rarityLabel(buddy.rarity)}`;
+  const speciesLine = buddy.species.toUpperCase();
   const lines = [
-    " Claude Companion",
-    "",
-    ` ${companion.name} the ${species}`,
+    ` ${rarityLine}${" ".repeat(Math.max(1, 42 - rarityLine.length - speciesLine.length))}${speciesLine}`,
     "",
     ...sprite.map((line) => `   ${line}`),
     "",
-    companion.hatchedAt ? ` Hatched: ${new Date(companion.hatchedAt).toISOString()}` : null,
-    " Stats: unavailable in live Claude state",
+    ` ${companion.name}`,
     "",
-    " Personality:"
+    ...wrapText(`"${companion.personality || "No personality text available."}"`, 38).map((line) => ` ${line}`),
+    "",
+    ...Object.entries(buddy.stats).map(
+      ([name, value]) => ` ${name.padEnd(10)} ${renderStatBar(value)} ${String(value).padStart(3)}`
+    ),
+    "",
+    ` Peak: ${buddy.peak}  Dump: ${buddy.dump}`,
+    ` Total: ${buddy.total}`,
+    "",
+    companion.hatchedAt ? ` Hatched: ${new Date(companion.hatchedAt).toISOString()}` : null,
+    ` Eyes: ${buddy.eye}  Hat: ${buddy.hat}`,
+    " Bones regenerated from current UUID"
   ].filter(Boolean);
-  const personalityLines = wrapText(companion.personality || "No personality text available.", 40).map((line) => ` ${line}`);
   const width = 44;
   const border = "═".repeat(width);
   return [
     `╔${border}╗`,
-    ...[...lines, ...personalityLines].map((line) => `║ ${padLine(line, width)} ║`),
+    ...lines.map((line) => `║ ${padLine(line, width)} ║`),
     `╚${border}╝`
   ].join("\n");
 }

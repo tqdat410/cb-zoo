@@ -68,10 +68,12 @@ export function applyUuid(newUuid, options = {}) {
   }
   const { configFile, config } = resolveClaudeState({ configFile: options.configFile, requireWritableConfig: true });
   config.oauthAccount.accountUuid = newUuid;
+  delete config.companion;
+  delete config.companionMuted;
   writeJsonFile(configFile, config);
   return {
     uuid: newUuid,
-    warning: `Restart Claude Code to see your new buddy. Re-auth can overwrite the UUID back to the original. Updated ${configFile}`
+    warning: `Restart Claude Code to hatch from the new UUID. Re-auth can overwrite the UUID back to the original. Updated ${configFile}`
   };
 }
 

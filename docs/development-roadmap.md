@@ -16,7 +16,8 @@
 - `CB_ZOO_DATA_DIR` overrides that point into protected Claude state directories such as `.claude` or Windows `%APPDATA%\\Claude` are now rejected.
 - Sprite regression coverage now locks the renderer to a 5-line contract.
 - Claude account state resolution now prefers `.claude.json`, supports `CLAUDE_CONFIG_DIR`, and keeps legacy path fallbacks under regression coverage.
-- Live Claude companion state now overrides the old UUID-derived buddy assumption: `--current` reads `companion`, and legacy roll/apply is blocked when that state is present.
+- The buddy engine now matches current Claude bones by hashing UUIDs with wyhash before feeding Mulberry32.
+- Live companion cards now merge stored soul data with real UUID-regenerated rarity, species, cosmetics, and stats.
 
 ## Next Work
 

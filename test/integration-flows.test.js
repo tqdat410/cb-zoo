@@ -226,7 +226,7 @@ test("cli current prints the real Claude companion summary when companion state 
       configFile,
       JSON.stringify(
         {
-          oauthAccount: { accountUuid: "00000000-0000-4000-8000-000000000000" },
+          oauthAccount: { accountUuid: "73e7fce7-9a2a-40b1-b78e-11571f33011a" },
           companion: {
             name: "Plinth",
             personality: "A methodical tabby that paces when you introduce a bug.",
@@ -257,9 +257,12 @@ test("cli current prints the real Claude companion summary when companion state 
     });
 
     assert.equal(result.status, 0);
-    assert.match(result.stdout, /Claude Companion/);
-    assert.match(result.stdout, /Plinth the cat/);
-    assert.match(result.stdout, /Stats: unavailable in live Claude state/);
+    assert.match(result.stdout, /★★★ RARE/);
+    assert.match(result.stdout, /CAT/);
+    assert.match(result.stdout, /Plinth/);
+    assert.match(result.stdout, /DEBUGGING  ██████░░░░  61/);
+    assert.match(result.stdout, /PATIENCE   ████████░░  88/);
+    assert.match(result.stdout, /Bones regenerated from current UUID/);
     assert.match(result.stdout, /methodical tabby/i);
   });
 });
@@ -429,7 +432,7 @@ test("corrupt collection blocks quick roll before overwriting local data", () =>
   });
 });
 
-test("quick roll is blocked before local mutations when Claude uses live companion state", () => {
+test("quick roll still works when Claude uses live companion state", () => {
   withTempEnvironment(({ configFile, claudeDir, dataDir }) => {
     writeFileSync(
       configFile,
@@ -466,11 +469,38 @@ test("quick roll is blocked before local mutations when Claude uses live compani
       env: { ...process.env }
     });
 
-    assert.equal(result.status, 1);
-    assert.match(result.stderr, /live companion state/i);
-    assert.equal(existsSync(join(dataDir, "backup.json")), false);
-    assert.equal(existsSync(join(dataDir, "collection.json")), false);
-    assert.equal(result.stdout.includes("Backed up current UUID"), false);
+    assert.equal(result.status, 0);
+    assert.equal(existsSync(join(dataDir, "backup.json")), true);
+    assert.equal(existsSync(join(dataDir, "collection.json")), true);
+    assert.equal(result.stdout.includes("Backed up current UUID"), true);
+  });
+});
+
+test("applyUuid clears stored companion cache so Claude can re-hatch from the new UUID", () => {
+  withTempEnvironment(({ configFile }) => {
+    writeFileSync(
+      configFile,
+      JSON.stringify(
+        {
+          oauthAccount: { accountUuid: "00000000-0000-4000-8000-000000000000" },
+          companion: {
+            name: "Plinth",
+            personality: "A methodical tabby that paces when you introduce a bug.",
+            hatchedAt: 1775023802769
+          },
+          companionMuted: true
+        },
+        null,
+        2
+      ),
+      "utf8"
+    );
+
+    applyUuid("11111111-1111-4111-8111-111111111111");
+    const updated = JSON.parse(readFileSync(configFile, "utf8"));
+    assert.equal(updated.oauthAccount.accountUuid, "11111111-1111-4111-8111-111111111111");
+    assert.equal("companion" in updated, false);
+    assert.equal("companionMuted" in updated, false);
   });
 });
 

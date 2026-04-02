@@ -8,9 +8,9 @@
 - Pinned restore operations to the originally backed-up Claude state file and rejected tampered backup target paths
 - Added regression coverage for resolver ordering, authoritative sandbox overrides, pinned restore behavior, Windows appdata directory guards, and read-only `userID` compatibility
 - Updated docs to stop claiming `.claude/.config.json` as the canonical path
-- Switched `--current` to show the real Claude `companion` summary when live companion state exists
-- Disabled roll/apply flow on current Claude builds where UUID rerolls no longer match the live companion
-- Added regression coverage so companion mode fails before backup or collection mutations
+- Switched the buddy engine hash from FNV-1a to wyhash so UUID rolls match the current Claude companion bones
+- Updated `--current` to merge stored companion soul data with UUID-regenerated rarity, species, cosmetics, and stats
+- Cleared stored companion cache on apply and restore so Claude can hatch a fresh soul after a UUID change
 
 ## 2026-04-01
 

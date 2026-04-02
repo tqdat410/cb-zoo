@@ -4,8 +4,8 @@
 
 ## Features
 
-- Legacy deterministic UUID buddy rolls for older Claude Code behavior
-- Real `--current` companion inspection when Claude stores a live companion in `.claude.json`
+- Deterministic buddy rolls from the active Claude UUID using the current Claude buddy hash pipeline
+- Real `--current` companion inspection that merges stored soul data with UUID-regenerated buddy bones
 - Cross-platform Claude UUID backup, apply, and restore flow
 - Local collection tracking in `~/.cb-zoo/collection.json`
 - Animated reveal mode plus instant `--quick` mode
@@ -34,7 +34,6 @@ node ./src/cli.js --restore
 
 - Roll mode always reveals a buddy, saves it to the local collection, then prompts `[A]pply`, `[R]eroll`, or `[Q]uit`.
 - `--quick` skips animation, but it still uses the same prompt flow.
-- On current Claude Code builds with a live `companion` state, roll/apply is blocked because UUID rerolls no longer match the real buddy.
 - In non-interactive use, pipe input such as `q`, `r`, or `a`. Empty stdin fails fast before backup or collection writes.
 
 ## Environment Overrides
@@ -50,7 +49,8 @@ These are optional and mainly useful for testing or sandboxed runs:
 ## Safety Notes
 
 - The tool edits `oauthAccount.accountUuid` inside the resolved Claude Code account state file.
-- Current Claude Code builds can store the real buddy separately in `companion`, so UUID rerolls are now a legacy flow and may not affect the live buddy at all.
+- Current Claude Code builds store `companion.name`, `companion.personality`, and `hatchedAt`, but rarity/species/hat/stats are regenerated from the active UUID.
+- Applying a new UUID clears the stored companion cache so Claude Code can hatch a fresh soul for the new bones.
 - Current canonical target is `~/.claude.json` or `$CLAUDE_CONFIG_DIR/.claude.json`.
 - Legacy/community fallback paths are used only when higher-priority `.claude.json` candidates are missing or unusable, including `~/.claude/.config.json` and `%APPDATA%\\Claude\\config.json` on Windows.
 - The original UUID is backed up to `~/.cb-zoo/backup.json` on first run.

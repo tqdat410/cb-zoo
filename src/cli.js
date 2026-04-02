@@ -89,12 +89,6 @@ async function ensurePromptInputAvailable() {
 }
 
 async function gachaLoop(isQuick) {
-  const companion = getCurrentCompanion();
-  if (companion) {
-    throw new Error(
-      `Claude Code is using live companion state for ${companion.name}, so UUID rerolls no longer match the real buddy. cb-zoo roll/apply is disabled for this Claude version.`
-    );
-  }
   await ensurePromptInputAvailable();
   loadCollection();
   if (!hasBackup()) {
