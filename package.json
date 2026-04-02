@@ -1,0 +1,29 @@
+{
+  "name": "cb-zoo",
+  "version": "0.1.0",
+  "description": "Claude Buddy Gacha tool for rolling, collecting, and applying Claude Code buddies",
+  "type": "module",
+  "bin": {
+    "cb-zoo": "./src/cli.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "files": [
+    "src/",
+    "README.md"
+  ],
+  "scripts": {
+    "start": "node ./src/cli.js",
+    "test": "node --test",
+    "test:coverage": "node --experimental-test-coverage --test"
+  },
+  "keywords": [
+    "claude",
+    "buddy",
+    "gacha",
+    "cli",
+    "terminal"
+  ],
+  "license": "MIT"
+}
