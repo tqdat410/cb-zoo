@@ -1,3 +1,5 @@
+import { STARS } from "../config.js";
+
 export const ANSI = {
   reset: "\x1b[0m",
   bold: "\x1b[1m",
@@ -14,6 +16,30 @@ export const ANSI = {
   bgGold: "\x1b[43m",
   bgGray: "\x1b[100m"
 };
+
+const RARITY_COLORS = {
+  common: ANSI.gray,
+  uncommon: ANSI.green,
+  rare: ANSI.cyan,
+  epic: ANSI.magenta,
+  legendary: ANSI.gold
+};
+
+const RARITY_BURSTS = {
+  common: "· · · · · · · ·",
+  uncommon: "★ ★ ★ ★ ★ ★ ★ ★",
+  rare: "✦ ✦ ✦ ✦ ✦ ✦ ✦ ✦",
+  epic: "✦ ★ ✦ ★ ✦ ★ ✦ ★",
+  legendary: "✦✦✦✦✦✦✦✦✦✦✦✦"
+};
+
+export function getRarityAccent(rarity) {
+  return {
+    color: RARITY_COLORS[rarity] || ANSI.cyan,
+    stars: STARS[rarity] || "",
+    burst: RARITY_BURSTS[rarity] || "★ ★ ★ ★ ★ ★ ★ ★"
+  };
+}
 
 export function stripAnsi(value) {
   return value.replace(/\x1b\[[0-9;?]*[A-Za-z]/g, "");

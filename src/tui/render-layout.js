@@ -27,5 +27,5 @@ export function renderHandheldScreen(view, terminal = {}) {
     `╰${"─".repeat(width - 2)}╯`
   ];
 
-  return `${ANSI.bgBlue}\x1b[2J\x1b[H${lines.join("\n")}${ANSI.reset}`;
+  return `\x1b[2J\x1b[H${lines.join("\n")}${ANSI.reset}`;
 }

@@ -1,10 +1,11 @@
 import { randomUUID } from "node:crypto";
 import { pick, rollFrom, mulberry32, hashString } from "../buddy-engine.js";
-import { saveToCollection } from "../collection.js";
+import { deleteCollectionEntry, saveToCollection } from "../collection.js";
 import { EYES, SPECIES } from "../config.js";
 import { applyUuid, backupUuid, hasBackup } from "../uuid-manager.js";
 import { syncCollection } from "./state.js";
-import { ANSI } from "./render-helpers.js";
+import { createIdleRollState, ROLL_ACTIONS } from "./roll-config.js";
+import { getRarityAccent } from "./render-helpers.js";
 
 function sleep(milliseconds) {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
@@ -20,13 +21,7 @@ export async function runRollSequence(state, writeScreen) {
   }
   const buddy = rollFrom(randomUUID());
   const rng = mulberry32(hashString(`${buddy.uuid}:tui-spin`));
-  const rarityColors = {
-    common: ANSI.gray,
-    uncommon: ANSI.green,
-    rare: ANSI.cyan,
-    epic: ANSI.magenta,
-    legendary: ANSI.gold
-  };
+  const accent = getRarityAccent(buddy.rarity);
 
   for (const delay of [45, 55, 65, 75, 90, 105]) {
     state.roll = {
@@ -43,30 +38,74 @@ export async function runRollSequence(state, writeScreen) {
     ...state.roll,
     phase: "rarity",
     previewRarity: buddy.rarity,
-    previewColor: rarityColors[buddy.rarity],
-    previewBurst: buddy.rarity === "legendary" ? "✦✦✦✦✦✦✦✦✦✦✦✦" : "★ ★ ★ ★ ★ ★ ★ ★"
+    previewColor: accent.color,
+    previewBurst: accent.burst,
+    previewStars: accent.stars
   };
   writeScreen(state);
   await sleep(buddy.rarity === "legendary" ? 500 : 300);
 
-  state.roll = { ...state.roll, phase: "revealed", buddy, actionIndex: 0 };
+  state.roll = {
+    ...state.roll,
+    phase: "revealed",
+    buddy,
+    actionIndex: 0,
+    previewColor: accent.color,
+    previewBurst: accent.burst,
+    previewStars: accent.stars,
+    savedToCollection: false
+  };
   state.busy = false;
-  saveToCollection(buddy);
+  state.statusMessage = `Rolled ${buddy.rarity} ${buddy.species}.`;
+}
+
+function resetRollState(state) {
+  state.roll = createIdleRollState();
+}
+
+function ensureRollSaved(state) {
+  if (state.roll.savedToCollection || !state.roll.buddy) {
+    return null;
+  }
+  const entry = saveToCollection(state.roll.buddy);
+  state.roll.savedToCollection = true;
   syncCollection(state);
-  state.statusMessage = "Buddy added to collection.";
+  return entry;
 }
 
 export async function applyRollAction(state, writeScreen) {
   const buddy = state.roll.buddy;
-  const action = ["apply", "reroll", "back"][state.roll.actionIndex];
+  const action = ROLL_ACTIONS[state.roll.actionIndex]?.id;
   if (!buddy) {
     return;
   }
-  if (action === "apply") {
-    const result = applyUuid(buddy.uuid);
+  if (action === "equip") {
+    const savedEntry = ensureRollSaved(state);
+    let result;
+    try {
+      result = applyUuid(buddy.uuid);
+    } catch (error) {
+      if (savedEntry) {
+        try {
+          deleteCollectionEntry(savedEntry);
+          state.roll.savedToCollection = false;
+          syncCollection(state);
+        } catch (rollbackError) {
+          throw new Error(`${error.message} Rollback failed: ${rollbackError.message}`);
+        }
+      }
+      throw error;
+    }
     state.screen = "home";
-    state.roll = { ...state.roll, phase: "idle", buddy: null, actionIndex: 0 };
-    state.statusMessage = result.warning;
+    resetRollState(state);
+    state.statusMessage = savedEntry
+      ? `Added and equipped ${buddy.species}. ${result.warning}`
+      : `Equipped ${buddy.species}. ${result.warning}`;
+    return;
+  }
+  if (action === "add") {
+    const savedEntry = ensureRollSaved(state);
+    state.statusMessage = savedEntry ? "Buddy added to collection." : "Buddy already added for this roll.";
     return;
   }
   if (action === "reroll") {
@@ -74,6 +113,6 @@ export async function applyRollAction(state, writeScreen) {
     return;
   }
   state.screen = "home";
-  state.statusMessage = "Roll cancelled.";
-  state.roll = { ...state.roll, phase: "idle", buddy: null, actionIndex: 0 };
+  state.statusMessage = state.roll.savedToCollection ? "Returned home." : "Roll discarded.";
+  resetRollState(state);
 }

@@ -43,7 +43,9 @@ node ./src/cli.js --restore
 
 ## Roll Flow
 
-- Roll mode always reveals a buddy, saves it to the local collection, then prompts `[A]pply`, `[R]eroll`, or `[Q]uit`.
+- TUI roll mode reveals a buddy first, then lets you `Equip`, `Add`, `Reroll`, or go `Back`.
+- In the TUI, `Add` saves the buddy to your local collection and `Equip` saves then applies it immediately.
+- Plain CLI roll mode still uses the legacy prompt flow.
 - `--quick` skips animation, but it still uses the same prompt flow.
 - In non-interactive use, pipe input such as `q`, `r`, or `a`. Empty stdin fails fast before backup or collection writes.
 

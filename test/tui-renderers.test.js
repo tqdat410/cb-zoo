@@ -6,6 +6,7 @@ import { renderCollectionView } from "../src/tui/views/collection-view.js";
 import { renderEditView } from "../src/tui/views/edit-view.js";
 import { renderRollView } from "../src/tui/views/roll-view.js";
 import { clipLines, wrapText } from "../src/tui/render-helpers.js";
+import { getRollActionIndex } from "../src/tui/roll-config.js";
 
 test("normalizeKeypress maps vim aliases and printable input", () => {
   assert.deepEqual(normalizeKeypress("j"), { name: "text", value: "j" });
@@ -18,6 +19,7 @@ test("render helpers wrap and clip text predictably", () => {
   assert.deepEqual(wrapText("alpha beta gamma", 10), ["alpha beta", "gamma"]);
   assert.deepEqual(wrapText("superlongtoken", 5), ["super", "longt", "oken"]);
   assert.deepEqual(clipLines(["a", "b", "c"], 2), ["a", "..."]);
+  assert.equal(getRollActionIndex("missing-action"), 0);
 });
 
 test("home, edit, collection, and roll views render handheld content", () => {
@@ -54,9 +56,38 @@ test("home, edit, collection, and roll views render handheld content", () => {
         dump: "CHAOS",
         total: 261
       },
-      actionIndex: 0
+      actionIndex: 0,
+      previewColor: "\x1b[36m",
+      previewStars: "★★★",
+      savedToCollection: false
     },
     statusMessage: "Rolled."
   });
-  assert.match(roll.bodyLines.join("\n"), /Apply/);
+  assert.match(roll.bodyLines.join("\n"), /Equip/);
+  assert.match(roll.bodyLines.join("\n"), /Add/);
+  assert.match(roll.bodyLines.join("\n"), /Reroll/);
+
+  const savedRoll = renderRollView({
+    roll: {
+      phase: "revealed",
+      buddy: {
+        uuid: "73e7fce7-9a2a-40b1-b78e-11571f33011a",
+        rarity: "rare",
+        species: "cat",
+        eye: "✦",
+        hat: "crown",
+        shiny: false,
+        stats: { DEBUGGING: 61, PATIENCE: 88, CHAOS: 18, WISDOM: 49, SNARK: 45 },
+        peak: "PATIENCE",
+        dump: "CHAOS",
+        total: 261
+      },
+      actionIndex: 1,
+      previewColor: "\x1b[36m",
+      previewStars: "★★★",
+      savedToCollection: true
+    },
+    statusMessage: "Saved."
+  });
+  assert.match(savedRoll.bodyLines.join("\n"), /\x1b\[32m/);
 });

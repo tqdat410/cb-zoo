@@ -11,6 +11,7 @@
 
 - Interactive TTY runs now enter a default Pokemon handheld-style TUI, while non-interactive and explicit flag flows stay on plain CLI-safe paths.
 - Added a lightweight raw-ANSI TUI runtime with shared handheld layout, keyboard navigation, roll stage, current buddy view, collection browser, and buddy metadata editor.
+- Refined the TUI roll stage so reveal no longer auto-saves, `Add` stores explicitly, `Equip` stores and applies in one step, and the shell now uses rarity accents without the old flat blue background fill.
 - Claude config parsing now tolerates a leading UTF-8 BOM.
 - Invalid `backup.json`, malformed UUID values, and bad config container shapes now block backup/apply/restore flow until the state is fixed.
 - Companion metadata edits now allow updating stored buddy `name` and `personality` without changing UUID-derived bones, and reject blank values or missing companion state.

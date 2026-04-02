@@ -2,6 +2,10 @@
 
 ## 2026-04-02
 
+- Refined the handheld TUI roll flow so revealed buddies are not auto-added to the collection
+- Added explicit TUI roll actions for `Equip`, `Add`, `Reroll`, and `Back`
+- Made TUI `Equip` save the revealed buddy before applying its UUID, while `Add` saves without applying
+- Removed the solid blue TUI background fill and leaned on rarity-colored accents instead
 - Switched interactive no-flag runs to a default Pokemon handheld-style TUI with keyboard navigation and shared shell layout
 - Added a raw ANSI TUI layer for home, roll, current, collection, and edit buddy flows while keeping explicit CLI flags and non-TTY fallback behavior
 - Added `--plain` as an escape hatch to the legacy line-oriented roll flow

@@ -54,6 +54,19 @@ function writeCollectionFile(entries) {
   renameSync(tempFile, filePath);
 }
 
+function sameCollectionEntry(left, right) {
+  return (
+    left.uuid === right.uuid &&
+    left.species === right.species &&
+    left.rarity === right.rarity &&
+    left.eye === right.eye &&
+    left.hat === right.hat &&
+    left.shiny === right.shiny &&
+    left.total === right.total &&
+    left.rolledAt === right.rolledAt
+  );
+}
+
 export function loadCollection() {
   return readCollectionFile();
 }
@@ -76,6 +89,22 @@ export function saveToCollection(buddy) {
   entries.push(entry);
   writeCollectionFile(entries);
   return entry;
+}
+
+export function deleteCollectionEntry(entryToRemove) {
+  const entries = readCollectionFile();
+  let index = -1;
+  for (let cursor = entries.length - 1; cursor >= 0; cursor -= 1) {
+    if (sameCollectionEntry(entries[cursor], entryToRemove)) {
+      index = cursor;
+      break;
+    }
+  }
+  if (index < 0) {
+    throw new Error("Collection entry to remove was not found.");
+  }
+  entries.splice(index, 1);
+  writeCollectionFile(entries);
 }
 
 export function getStats(collection = readCollectionFile()) {

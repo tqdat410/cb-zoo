@@ -7,6 +7,7 @@ import { renderRollView } from "./views/roll-view.js";
 import { renderCurrentView } from "./views/current-view.js";
 import { renderCollectionView } from "./views/collection-view.js";
 import { renderEditView } from "./views/edit-view.js";
+import { createIdleRollState } from "./roll-config.js";
 
 export function createInitialState() {
   return {
@@ -15,16 +16,7 @@ export function createInitialState() {
     statusMessage: "Welcome back, trainer.",
     shouldExit: false,
     busy: false,
-    roll: {
-      phase: "idle",
-      buddy: null,
-      actionIndex: 0,
-      previewSpecies: "cat",
-      previewEye: "·",
-      previewRarity: "common",
-      previewColor: "",
-      previewBurst: ""
-    },
+    roll: createIdleRollState(),
     collectionEntries: [],
     collectionIndex: 0,
     currentCompanion: null,

@@ -1,10 +1,18 @@
 import { backupUuid, restoreUuid, updateCompanionMetadata } from "../uuid-manager.js";
 import { getHomeMenuItems } from "./views/home-view.js";
 import { applyRollAction, runRollSequence } from "./roll-flow.js";
+import { getRollActionIndex, ROLL_ACTIONS } from "./roll-config.js";
 import { openEdit, syncCollection, syncCurrent } from "./state.js";
 
 function isShortcut(key, value) {
   return key.name === "text" && key.value.toLowerCase() === value;
+}
+
+function getRollShortcutIndex(key) {
+  if (key.name !== "text") {
+    return -1;
+  }
+  return ROLL_ACTIONS.findIndex((action) => action.shortcut === key.value.toLowerCase());
 }
 
 async function handleHomeAction(state, writeScreen) {
@@ -70,12 +78,17 @@ export function createKeypressHandler(state, writeScreen) {
           await handleHomeAction(state, writeScreen);
         }
       } else if (state.screen === "roll" && state.roll.phase === "revealed") {
+        const shortcutIndex = getRollShortcutIndex(key);
         if (key.name === "left" || isShortcut(key, "h")) {
-          state.roll.actionIndex = (state.roll.actionIndex + 2) % 3;
+          state.roll.actionIndex = (state.roll.actionIndex + ROLL_ACTIONS.length - 1) % ROLL_ACTIONS.length;
         } else if (key.name === "right" || isShortcut(key, "l")) {
-          state.roll.actionIndex = (state.roll.actionIndex + 1) % 3;
+          state.roll.actionIndex = (state.roll.actionIndex + 1) % ROLL_ACTIONS.length;
         } else if (key.name === "escape") {
-          state.screen = "home";
+          state.roll.actionIndex = getRollActionIndex("back");
+          await applyRollAction(state, writeScreen);
+        } else if (shortcutIndex >= 0) {
+          state.roll.actionIndex = shortcutIndex;
+          await applyRollAction(state, writeScreen);
         } else if (key.name === "enter") {
           await applyRollAction(state, writeScreen);
         }
@@ -120,6 +133,7 @@ export function createKeypressHandler(state, writeScreen) {
         writeScreen(state);
       }
     } catch (error) {
+      state.busy = false;
       state.screen = "home";
       state.statusMessage = error.message;
       writeScreen(state);
