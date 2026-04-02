@@ -1,5 +1,6 @@
+import { existsSync } from "node:fs";
 import { homedir } from "node:os";
-import { join, resolve, sep } from "node:path";
+import { dirname, join, resolve, sep } from "node:path";
 
 export const SALT = "friend-2026-401";
 export const RARITIES = ["common", "uncommon", "rare", "epic", "legendary"];
@@ -53,6 +54,10 @@ function resolveHomeDir() {
   return process.env.CB_ZOO_HOME || homedir();
 }
 
+function getConfiguredClaudeStateDir() {
+  return process.env.CB_ZOO_CLAUDE_DIR || process.env.CLAUDE_CONFIG_DIR || null;
+}
+
 function normalizePath(pathValue) {
   const resolvedPath = resolve(pathValue).replace(/[\\/]+$/, "");
   return process.platform === "win32" ? resolvedPath.toLowerCase() : resolvedPath;
@@ -65,17 +70,78 @@ function isSameOrNestedPath(parentPath, childPath) {
 }
 
 export function getClaudeDir() {
-  return process.env.CB_ZOO_CLAUDE_DIR || join(resolveHomeDir(), ".claude");
+  return getConfiguredClaudeStateDir() || join(resolveHomeDir(), ".claude");
+}
+
+function getWindowsClaudeConfigFile() {
+  if (!process.env.APPDATA) {
+    return null;
+  }
+  return join(process.env.APPDATA, "Claude", "config.json");
+}
+
+function getProtectedClaudeDataDirs() {
+  const protectedDirs = [getClaudeDir()];
+  const windowsClaudeConfigFile = getWindowsClaudeConfigFile();
+  if (windowsClaudeConfigFile) {
+    pushUniquePath(protectedDirs, dirname(windowsClaudeConfigFile));
+  }
+  return protectedDirs;
+}
+
+function pushUniquePath(paths, nextPath) {
+  if (!nextPath) {
+    return;
+  }
+  if (!paths.some((existingPath) => normalizePath(existingPath) === normalizePath(nextPath))) {
+    paths.push(nextPath);
+  }
+}
+
+export function getClaudeStateFileCandidates() {
+  const explicitConfigFile = process.env.CB_ZOO_CONFIG_FILE;
+  if (explicitConfigFile) {
+    return [explicitConfigFile];
+  }
+
+  const configuredClaudeStateDir = getConfiguredClaudeStateDir();
+  const candidates = [];
+  if (configuredClaudeStateDir) {
+    pushUniquePath(candidates, join(configuredClaudeStateDir, ".claude.json"));
+    pushUniquePath(candidates, join(configuredClaudeStateDir, ".config.json"));
+    return candidates;
+  }
+
+  const homeStateFile = join(resolveHomeDir(), ".claude.json");
+  const legacyClaudeDir = join(resolveHomeDir(), ".claude");
+  pushUniquePath(candidates, homeStateFile);
+  pushUniquePath(candidates, join(legacyClaudeDir, ".config.json"));
+  if (process.platform === "win32") {
+    pushUniquePath(candidates, getWindowsClaudeConfigFile());
+  }
+  return candidates;
+}
+
+export function getPreferredClaudeStateFile() {
+  return getClaudeStateFileCandidates()[0];
+}
+
+export function resolveClaudeStateFile() {
+  return getClaudeStateFileCandidates().find((candidatePath) => existsSync(candidatePath)) || getPreferredClaudeStateFile();
+}
+
+export function isClaudeStateFileCandidate(filePath) {
+  return getClaudeStateFileCandidates().some((candidatePath) => normalizePath(candidatePath) === normalizePath(filePath));
 }
 
 export function getConfigFile() {
-  return process.env.CB_ZOO_CONFIG_FILE || join(getClaudeDir(), ".config.json");
+  return resolveClaudeStateFile();
 }
 
 export function getDataDir() {
   const dataDir = process.env.CB_ZOO_DATA_DIR || join(resolveHomeDir(), ".cb-zoo");
-  if (isSameOrNestedPath(getClaudeDir(), dataDir)) {
-    throw new Error("CB_ZOO_DATA_DIR must stay outside the Claude config directory.");
+  if (getProtectedClaudeDataDirs().some((protectedDir) => isSameOrNestedPath(protectedDir, dataDir))) {
+    throw new Error("CB_ZOO_DATA_DIR must stay outside Claude config directories.");
   }
   return dataDir;
 }
@@ -90,6 +156,7 @@ export function getCollectionFile() {
 
 export const CLAUDE_DIR = getClaudeDir();
 export const CONFIG_FILE = getConfigFile();
+export const CLAUDE_STATE_FILE = resolveClaudeStateFile();
 export const CBZOO_DIR = getDataDir();
 export const BACKUP_FILE = getBackupFile();
 export const COLLECTION_FILE = getCollectionFile();

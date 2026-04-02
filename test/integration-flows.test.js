@@ -1,20 +1,28 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { tmpdir } from "node:os";
 import { spawnSync } from "node:child_process";
 import { backupUuid, applyUuid, getCurrentUuid, restoreUuid } from "../src/uuid-manager.js";
 import { loadCollection, saveToCollection, getStats, formatCollection } from "../src/collection.js";
 
-function withTempEnvironment(callback) {
+function withTempEnvironment(callback, options = {}) {
   const baseDir = mkdtempSync(join(tmpdir(), "cb-zoo-"));
   const claudeDir = join(baseDir, ".claude");
   const dataDir = join(baseDir, ".cb-zoo");
-  const configFile = join(claudeDir, ".config.json");
+  const appDataDir = join(baseDir, "AppData", "Roaming");
+  const configLayouts = {
+    primary: join(baseDir, ".claude.json"),
+    claudeDirPrimary: join(claudeDir, ".claude.json"),
+    legacy: join(claudeDir, ".config.json"),
+    appData: join(appDataDir, "Claude", "config.json")
+  };
+  const configFile = configLayouts[options.configLayout || "primary"];
 
   mkdirSync(claudeDir, { recursive: true });
   mkdirSync(dataDir, { recursive: true });
+  mkdirSync(dirname(configFile), { recursive: true });
   writeFileSync(
     configFile,
     JSON.stringify(
@@ -32,17 +40,33 @@ function withTempEnvironment(callback) {
   const previous = {
     CB_ZOO_HOME: process.env.CB_ZOO_HOME,
     CB_ZOO_CLAUDE_DIR: process.env.CB_ZOO_CLAUDE_DIR,
+    CLAUDE_CONFIG_DIR: process.env.CLAUDE_CONFIG_DIR,
     CB_ZOO_CONFIG_FILE: process.env.CB_ZOO_CONFIG_FILE,
-    CB_ZOO_DATA_DIR: process.env.CB_ZOO_DATA_DIR
+    CB_ZOO_DATA_DIR: process.env.CB_ZOO_DATA_DIR,
+    APPDATA: process.env.APPDATA
   };
 
   process.env.CB_ZOO_HOME = baseDir;
-  process.env.CB_ZOO_CLAUDE_DIR = claudeDir;
-  process.env.CB_ZOO_CONFIG_FILE = configFile;
   process.env.CB_ZOO_DATA_DIR = dataDir;
+  delete process.env.CB_ZOO_CLAUDE_DIR;
+  delete process.env.CB_ZOO_CONFIG_FILE;
+  delete process.env.CLAUDE_CONFIG_DIR;
+
+  if (options.setCbZooClaudeDir) {
+    process.env.CB_ZOO_CLAUDE_DIR = claudeDir;
+  }
+  if (options.setClaudeConfigDir) {
+    process.env.CLAUDE_CONFIG_DIR = claudeDir;
+  }
+  if (options.setConfigOverride) {
+    process.env.CB_ZOO_CONFIG_FILE = configFile;
+  }
+  if (options.configLayout === "appData") {
+    process.env.APPDATA = appDataDir;
+  }
 
   try {
-    callback({ baseDir, claudeDir, dataDir, configFile });
+    callback({ baseDir, claudeDir, dataDir, configFile, appDataDir });
   } finally {
     for (const [key, value] of Object.entries(previous)) {
       if (value === undefined) {
@@ -69,6 +93,174 @@ test("uuid backup, apply, and restore preserve the rest of the Claude config", (
     restoreUuid();
     updated = JSON.parse(readFileSync(configFile, "utf8"));
     assert.equal(updated.oauthAccount.accountUuid, "00000000-0000-4000-8000-000000000000");
+  });
+});
+
+test("uuid manager prefers .claude.json over legacy .config.json", () => {
+  withTempEnvironment(({ baseDir, claudeDir, configFile }) => {
+    const legacyConfigFile = join(claudeDir, ".config.json");
+    writeFileSync(
+      legacyConfigFile,
+      JSON.stringify({ oauthAccount: { accountUuid: "99999999-9999-4999-8999-999999999999" } }, null, 2),
+      "utf8"
+    );
+    assert.equal(configFile, join(baseDir, ".claude.json"));
+    assert.equal(getCurrentUuid(), "00000000-0000-4000-8000-000000000000");
+  });
+});
+
+test("uuid manager ignores shadow .claude/.claude.json when the home .claude.json exists", () => {
+  withTempEnvironment(({ baseDir, claudeDir, configFile }) => {
+    const shadowConfigFile = join(claudeDir, ".claude.json");
+    writeFileSync(
+      shadowConfigFile,
+      JSON.stringify({ oauthAccount: { accountUuid: "99999999-9999-4999-8999-999999999999" } }, null, 2),
+      "utf8"
+    );
+    assert.equal(configFile, join(baseDir, ".claude.json"));
+    assert.equal(getCurrentUuid(), "00000000-0000-4000-8000-000000000000");
+
+    applyUuid("11111111-1111-4111-8111-111111111111");
+    assert.equal(JSON.parse(readFileSync(configFile, "utf8")).oauthAccount.accountUuid, "11111111-1111-4111-8111-111111111111");
+    assert.equal(JSON.parse(readFileSync(shadowConfigFile, "utf8")).oauthAccount.accountUuid, "99999999-9999-4999-8999-999999999999");
+  });
+});
+
+test("uuid manager reads CLAUDE_CONFIG_DIR/.claude.json when configured", () => {
+  withTempEnvironment(
+    ({ configFile, claudeDir }) => {
+      assert.equal(configFile, join(claudeDir, ".claude.json"));
+      assert.equal(getCurrentUuid(), "00000000-0000-4000-8000-000000000000");
+    },
+    { configLayout: "claudeDirPrimary", setClaudeConfigDir: true }
+  );
+});
+
+test("uuid manager honors CB_ZOO_CONFIG_FILE before resolver fallbacks", () => {
+  withTempEnvironment(
+    ({ configFile, baseDir }) => {
+      writeFileSync(
+        join(baseDir, ".claude.json"),
+        JSON.stringify({ oauthAccount: { accountUuid: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" } }, null, 2),
+        "utf8"
+      );
+      assert.equal(configFile, join(baseDir, ".claude", ".config.json"));
+      assert.equal(getCurrentUuid(), "00000000-0000-4000-8000-000000000000");
+    },
+    { configLayout: "legacy", setConfigOverride: true }
+  );
+});
+
+test("uuid manager treats CB_ZOO_CLAUDE_DIR as an authoritative sandbox override", () => {
+  withTempEnvironment(
+    ({ baseDir, claudeDir, configFile }) => {
+      writeFileSync(
+        join(baseDir, ".claude.json"),
+        JSON.stringify({ oauthAccount: { accountUuid: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" } }, null, 2),
+        "utf8"
+      );
+      assert.equal(configFile, join(claudeDir, ".config.json"));
+      assert.equal(getCurrentUuid(), "00000000-0000-4000-8000-000000000000");
+    },
+    { configLayout: "legacy", setCbZooClaudeDir: true }
+  );
+});
+
+test("uuid manager falls back to legacy .config.json when .claude.json is missing", () => {
+  withTempEnvironment(
+    ({ configFile, claudeDir }) => {
+      assert.equal(configFile, join(claudeDir, ".config.json"));
+      assert.equal(getCurrentUuid(), "00000000-0000-4000-8000-000000000000");
+    },
+    { configLayout: "legacy" }
+  );
+});
+
+test("uuid manager skips an invalid configured .claude.json and falls back to configured legacy .config.json", () => {
+  withTempEnvironment(
+    ({ claudeDir }) => {
+      writeFileSync(join(claudeDir, ".claude.json"), "{not-json", "utf8");
+      assert.equal(getCurrentUuid(), "00000000-0000-4000-8000-000000000000");
+    },
+    { configLayout: "legacy", setClaudeConfigDir: true }
+  );
+});
+
+test("uuid manager falls back to APPDATA Claude config on Windows when primary files are missing", () => {
+  if (process.platform !== "win32") {
+    return;
+  }
+  withTempEnvironment(
+    ({ appDataDir, configFile }) => {
+      assert.equal(configFile, join(appDataDir, "Claude", "config.json"));
+      assert.equal(getCurrentUuid(), "00000000-0000-4000-8000-000000000000");
+    },
+    { configLayout: "appData" }
+  );
+});
+
+test("uuid manager skips an invalid home .claude.json and falls back to APPDATA Claude config on Windows", () => {
+  if (process.platform !== "win32") {
+    return;
+  }
+  withTempEnvironment(
+    ({ baseDir }) => {
+      writeFileSync(join(baseDir, ".claude.json"), "{not-json", "utf8");
+      assert.equal(getCurrentUuid(), "00000000-0000-4000-8000-000000000000");
+    },
+    { configLayout: "appData" }
+  );
+});
+
+test("getCurrentUuid can read legacy userID in read-only compatibility mode", () => {
+  withTempEnvironment(({ configFile }) => {
+    writeFileSync(configFile, JSON.stringify({ userID: "22222222-2222-4222-8222-222222222222" }, null, 2), "utf8");
+    assert.equal(getCurrentUuid({ allowLegacyUserId: true }), "22222222-2222-4222-8222-222222222222");
+    assert.throws(() => getCurrentUuid(), /valid oauthAccount\.accountUuid/i);
+  });
+});
+
+test("cli current prints the real Claude companion summary when companion state exists", () => {
+  withTempEnvironment(({ configFile, claudeDir }) => {
+    writeFileSync(
+      configFile,
+      JSON.stringify(
+        {
+          oauthAccount: { accountUuid: "00000000-0000-4000-8000-000000000000" },
+          companion: {
+            name: "Plinth",
+            personality: "A methodical tabby that paces when you introduce a bug.",
+            hatchedAt: 1775023802769
+          }
+        },
+        null,
+        2
+      ),
+      "utf8"
+    );
+    const sessionDir = join(claudeDir, "projects", "demo-project");
+    mkdirSync(sessionDir, { recursive: true });
+    writeFileSync(
+      join(sessionDir, "session.jsonl"),
+      `${JSON.stringify({
+        type: "attachment",
+        attachment: { type: "companion_intro", name: "Plinth", species: "cat" },
+        timestamp: "2026-04-02T03:33:04.530Z"
+      })}\n`,
+      "utf8"
+    );
+
+    const result = spawnSync(process.execPath, ["./src/cli.js", "--current"], {
+      cwd: process.cwd(),
+      encoding: "utf8",
+      env: { ...process.env }
+    });
+
+    assert.equal(result.status, 0);
+    assert.match(result.stdout, /Claude Companion/);
+    assert.match(result.stdout, /Plinth the cat/);
+    assert.match(result.stdout, /Stats: unavailable in live Claude state/);
+    assert.match(result.stdout, /methodical tabby/i);
   });
 });
 
@@ -237,6 +429,51 @@ test("corrupt collection blocks quick roll before overwriting local data", () =>
   });
 });
 
+test("quick roll is blocked before local mutations when Claude uses live companion state", () => {
+  withTempEnvironment(({ configFile, claudeDir, dataDir }) => {
+    writeFileSync(
+      configFile,
+      JSON.stringify(
+        {
+          oauthAccount: { accountUuid: "00000000-0000-4000-8000-000000000000" },
+          companion: {
+            name: "Plinth",
+            personality: "A methodical tabby that paces when you introduce a bug.",
+            hatchedAt: 1775023802769
+          }
+        },
+        null,
+        2
+      ),
+      "utf8"
+    );
+    const sessionDir = join(claudeDir, "projects", "demo-project");
+    mkdirSync(sessionDir, { recursive: true });
+    writeFileSync(
+      join(sessionDir, "session.jsonl"),
+      `${JSON.stringify({
+        type: "attachment",
+        attachment: { type: "companion_intro", name: "Plinth", species: "cat" },
+        timestamp: "2026-04-02T03:33:04.530Z"
+      })}\n`,
+      "utf8"
+    );
+
+    const result = spawnSync(process.execPath, ["./src/cli.js", "--quick"], {
+      cwd: process.cwd(),
+      encoding: "utf8",
+      input: "q\n",
+      env: { ...process.env }
+    });
+
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /live companion state/i);
+    assert.equal(existsSync(join(dataDir, "backup.json")), false);
+    assert.equal(existsSync(join(dataDir, "collection.json")), false);
+    assert.equal(result.stdout.includes("Backed up current UUID"), false);
+  });
+});
+
 test("invalid collection entries block quick roll before backup or reveal", () => {
   withTempEnvironment(({ dataDir }) => {
     const collectionFile = join(dataDir, "collection.json");
@@ -289,8 +526,78 @@ test("backup rejects data directories inside Claude config directory", () => {
     });
 
     assert.equal(result.status, 1);
-    assert.match(result.stderr, /must stay outside the Claude config directory/i);
+    assert.match(result.stderr, /must stay outside Claude config directories/i);
     assert.equal(existsSync(join(claudeDir, "backup.json")), false);
+  });
+});
+
+test("backup rejects data directories inside Windows Claude appdata directory", () => {
+  if (process.platform !== "win32") {
+    return;
+  }
+  withTempEnvironment(
+    ({ appDataDir }) => {
+      const result = spawnSync(process.execPath, ["./src/cli.js", "--backup"], {
+        cwd: process.cwd(),
+        encoding: "utf8",
+        env: { ...process.env, CB_ZOO_DATA_DIR: join(appDataDir, "Claude", "cb-zoo-data") }
+      });
+
+      assert.equal(result.status, 1);
+      assert.match(result.stderr, /must stay outside Claude config directories/i);
+      assert.equal(existsSync(join(appDataDir, "Claude", "cb-zoo-data", "backup.json")), false);
+    },
+    { configLayout: "appData" }
+  );
+});
+
+test("restore stays pinned to the backed-up Claude state file", () => {
+  withTempEnvironment(({ configFile, claudeDir, dataDir }) => {
+    backupUuid();
+    writeFileSync(
+      join(claudeDir, ".config.json"),
+      JSON.stringify({ oauthAccount: { accountUuid: "99999999-9999-4999-8999-999999999999" } }, null, 2),
+      "utf8"
+    );
+    rmSync(configFile);
+
+    const result = spawnSync(process.execPath, ["./src/cli.js", "--restore"], {
+      cwd: process.cwd(),
+      encoding: "utf8",
+      env: { ...process.env }
+    });
+
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /account state not found/i);
+    assert.equal(JSON.parse(readFileSync(join(claudeDir, ".config.json"), "utf8")).oauthAccount.accountUuid, "99999999-9999-4999-8999-999999999999");
+    assert.equal(JSON.parse(readFileSync(join(dataDir, "backup.json"), "utf8")).stateFile, configFile);
+  });
+});
+
+test("restore rejects a tampered backup stateFile outside allowed Claude paths", () => {
+  withTempEnvironment(({ baseDir, dataDir }) => {
+    const unrelatedFile = join(baseDir, "unrelated.json");
+    writeFileSync(
+      unrelatedFile,
+      JSON.stringify({ oauthAccount: { accountUuid: "77777777-7777-4777-8777-777777777777" }, metadata: { untouched: true } }, null, 2),
+      "utf8"
+    );
+    writeFileSync(
+      join(dataDir, "backup.json"),
+      JSON.stringify({ uuid: "44444444-4444-4444-8444-444444444444", stateFile: unrelatedFile }, null, 2),
+      "utf8"
+    );
+
+    const result = spawnSync(process.execPath, ["./src/cli.js", "--restore"], {
+      cwd: process.cwd(),
+      encoding: "utf8",
+      env: { ...process.env }
+    });
+
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /unexpected Claude account state path/i);
+    assert.equal(JSON.parse(readFileSync(unrelatedFile, "utf8")).oauthAccount.accountUuid, "77777777-7777-4777-8777-777777777777");
+    assert.deepEqual(JSON.parse(readFileSync(unrelatedFile, "utf8")).metadata, { untouched: true });
   });
 });
 

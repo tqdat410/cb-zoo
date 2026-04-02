@@ -1,34 +1,18 @@
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
-import { getBackupFile, getConfigFile, getDataDir } from "./config.js";
-
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-function stripUtf8Bom(content) {
-  return content.charCodeAt(0) === 0xfeff ? content.slice(1) : content;
-}
+import { getBackupFile, getClaudeStateFileCandidates, getDataDir, isClaudeStateFileCandidate, resolveClaudeStateFile } from "./config.js";
+import { getUuidFromConfig, isUuid, readJsonFile, resolveClaudeState, validateWritableConfig } from "./claude-state.js";
 
 function readValidBackup(filePath, invalidMessage) {
   const backup = readJsonFile(filePath, "No cb-zoo backup found. Run cb-zoo --backup first.");
   if (!isUuid(backup?.uuid)) {
     throw new Error(invalidMessage);
   }
+  if (backup.stateFile !== undefined && typeof backup.stateFile !== "string") {
+    throw new Error("Backup file contains an invalid stateFile path.");
+  }
   return backup;
 }
 
-function isUuid(value) {
-  return typeof value === "string" && UUID_PATTERN.test(value);
-}
-
-function readJsonFile(filePath, missingMessage) {
-  if (!existsSync(filePath)) {
-    throw new Error(missingMessage);
-  }
-  try {
-    return JSON.parse(stripUtf8Bom(readFileSync(filePath, "utf8")));
-  } catch (error) {
-    throw new Error(`Failed to parse JSON at ${filePath}: ${error.message}`);
-  }
-}
 
 function writeJsonFile(filePath, payload) {
   const tempFile = `${filePath}.tmp`;
@@ -57,16 +41,9 @@ export function hasBackup() {
   return true;
 }
 
-export function getCurrentUuid() {
-  const config = readJsonFile(
-    getConfigFile(),
-    "Claude Code config not found. Run Claude Code once before using cb-zoo."
-  );
-  const uuid = config?.oauthAccount?.accountUuid;
-  if (!isUuid(uuid)) {
-    throw new Error("Claude Code config is missing a valid oauthAccount.accountUuid.");
-  }
-  return uuid;
+export function getCurrentUuid(options = {}) {
+  const { config } = resolveClaudeState(options);
+  return getUuidFromConfig(config, options);
 }
 
 export function backupUuid() {
@@ -79,38 +56,29 @@ export function backupUuid() {
       throw new Error(`cb-zoo backup exists but is invalid. Fix or delete backup.json before continuing. ${error.message}`);
     }
   }
-  const uuid = getCurrentUuid();
-  writeJsonFile(backupFile, { uuid, backedUpAt: new Date().toISOString() });
-  return { created: true, filePath: backupFile, uuid };
+  const { configFile: stateFile, config } = resolveClaudeState({ requireWritableConfig: true });
+  const uuid = getUuidFromConfig(config);
+  writeJsonFile(backupFile, { uuid, stateFile, backedUpAt: new Date().toISOString() });
+  return { created: true, filePath: backupFile, uuid, stateFile };
 }
 
-export function applyUuid(newUuid) {
+export function applyUuid(newUuid, options = {}) {
   if (!isUuid(newUuid)) {
     throw new Error("Refusing to write an invalid UUID to Claude Code config.");
   }
-  const configFile = getConfigFile();
-  const config = readJsonFile(
-    configFile,
-    "Claude Code config not found. Run Claude Code once before using cb-zoo."
-  );
-  if (!config || typeof config !== "object" || Array.isArray(config)) {
-    throw new Error("Claude Code config must contain a JSON object.");
-  }
-  if (!config.oauthAccount || typeof config.oauthAccount !== "object" || Array.isArray(config.oauthAccount)) {
-    throw new Error("Claude Code config is missing a valid oauthAccount object.");
-  }
-  if (!isUuid(config.oauthAccount.accountUuid)) {
-    throw new Error("Claude Code config is missing a valid oauthAccount.accountUuid.");
-  }
+  const { configFile, config } = resolveClaudeState({ configFile: options.configFile, requireWritableConfig: true });
   config.oauthAccount.accountUuid = newUuid;
   writeJsonFile(configFile, config);
   return {
     uuid: newUuid,
-    warning: "Restart Claude Code to see your new buddy. Re-auth can overwrite the UUID back to the original."
+    warning: `Restart Claude Code to see your new buddy. Re-auth can overwrite the UUID back to the original. Updated ${configFile}`
   };
 }
 
 export function restoreUuid() {
   const backup = readValidBackup(getBackupFile(), "Backup file is missing a valid UUID.");
-  return applyUuid(backup.uuid);
+  if (backup.stateFile && !isClaudeStateFileCandidate(backup.stateFile)) {
+    throw new Error("Backup file points to an unexpected Claude account state path. Fix or recreate backup.json before restoring.");
+  }
+  return applyUuid(backup.uuid, backup.stateFile ? { configFile: backup.stateFile } : undefined);
 }

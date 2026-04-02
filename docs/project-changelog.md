@@ -1,5 +1,17 @@
 # Project Changelog
 
+## 2026-04-02
+
+- Standardized Claude account state path resolution around `.claude.json`
+- Added fallback support for `CLAUDE_CONFIG_DIR/.claude.json`, legacy `.config.json`, and Windows `%APPDATA%\\Claude\\config.json`
+- Kept writes restricted to `oauthAccount.accountUuid`
+- Pinned restore operations to the originally backed-up Claude state file and rejected tampered backup target paths
+- Added regression coverage for resolver ordering, authoritative sandbox overrides, pinned restore behavior, Windows appdata directory guards, and read-only `userID` compatibility
+- Updated docs to stop claiming `.claude/.config.json` as the canonical path
+- Switched `--current` to show the real Claude `companion` summary when live companion state exists
+- Disabled roll/apply flow on current Claude builds where UUID rerolls no longer match the live companion
+- Added regression coverage so companion mode fails before backup or collection mutations
+
 ## 2026-04-01
 
 - Implemented the initial `cb-zoo` CLI scaffold

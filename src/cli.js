@@ -3,6 +3,7 @@
 import { randomUUID } from "node:crypto";
 import { parseArgs } from "node:util";
 import { rollFrom } from "./buddy-engine.js";
+import { formatCompanionSummary, getCurrentCompanion } from "./companion-state.js";
 import { animateGacha, quickReveal, showBuddyCard } from "./gacha-animation.js";
 import { displayCollection, loadCollection, saveToCollection } from "./collection.js";
 import { applyUuid, backupUuid, getCurrentUuid, hasBackup, restoreUuid } from "./uuid-manager.js";
@@ -68,7 +69,12 @@ function showHelp() {
 }
 
 async function showCurrentBuddy() {
-  const uuid = getCurrentUuid();
+  const companion = getCurrentCompanion();
+  if (companion) {
+    process.stdout.write(`${formatCompanionSummary(companion)}\n`);
+    return;
+  }
+  const uuid = getCurrentUuid({ allowLegacyUserId: true });
   process.stdout.write(`${showBuddyCard(rollFrom(uuid))}\n`);
 }
 
@@ -83,6 +89,12 @@ async function ensurePromptInputAvailable() {
 }
 
 async function gachaLoop(isQuick) {
+  const companion = getCurrentCompanion();
+  if (companion) {
+    throw new Error(
+      `Claude Code is using live companion state for ${companion.name}, so UUID rerolls no longer match the real buddy. cb-zoo roll/apply is disabled for this Claude version.`
+    );
+  }
   await ensurePromptInputAvailable();
   loadCollection();
   if (!hasBackup()) {
