@@ -2,9 +2,15 @@
 
 ## 2026-04-02
 
+- Switched interactive no-flag runs to a default Pokemon handheld-style TUI with keyboard navigation and shared shell layout
+- Added a raw ANSI TUI layer for home, roll, current, collection, and edit buddy flows while keeping explicit CLI flags and non-TTY fallback behavior
+- Added `--plain` as an escape hatch to the legacy line-oriented roll flow
+- Added routing and handheld-layout regression coverage for the new default mode
+- Added `--set-name` and `--set-personality` so users can edit stored companion metadata without changing UUID-derived bones
+- Reused the resolved Claude state write path for companion metadata updates and rejected blank edit values or missing companion state
 - Standardized Claude account state path resolution around `.claude.json`
 - Added fallback support for `CLAUDE_CONFIG_DIR/.claude.json`, legacy `.config.json`, and Windows `%APPDATA%\\Claude\\config.json`
-- Kept writes restricted to `oauthAccount.accountUuid`
+- Kept writes restricted to `oauthAccount.accountUuid` plus the current stored companion `name` / `personality`
 - Pinned restore operations to the originally backed-up Claude state file and rejected tampered backup target paths
 - Added regression coverage for resolver ordering, authoritative sandbox overrides, pinned restore behavior, Windows appdata directory guards, and read-only `userID` compatibility
 - Updated docs to stop claiming `.claude/.config.json` as the canonical path

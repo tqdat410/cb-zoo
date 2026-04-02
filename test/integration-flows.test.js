@@ -713,3 +713,27 @@ test("closed stdin fails before the roll loop mutates local state", () => {
     assert.equal(result.stdout.includes(dataDir), false);
   });
 });
+
+test("default no-flag non-tty run stays on the legacy plain flow instead of launching TUI", () => {
+  withTempEnvironment(() => {
+    const result = spawnSync(process.execPath, ["./src/cli.js"], {
+      cwd: process.cwd(),
+      encoding: "utf8",
+      env: { ...process.env }
+    });
+
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /requires stdin input/i);
+    assert.equal(result.stdout.includes("CB-ZOO // HANDHELD"), false);
+  });
+});
+
+test("plain flag keeps the legacy non-TUI help and roll routing available", () => {
+  const result = spawnSync(process.execPath, ["./src/cli.js", "--help"], {
+    cwd: process.cwd(),
+    encoding: "utf8"
+  });
+
+  assert.equal(result.status, 0);
+  assert.match(result.stdout, /--plain/);
+});

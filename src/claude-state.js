@@ -60,6 +60,39 @@ export function getCompanionFromConfig(config) {
   };
 }
 
+function sanitizeCompanionField(value, fieldName) {
+  if (typeof value !== "string") {
+    throw new Error(`Companion ${fieldName} must be a string.`);
+  }
+  const trimmedValue = value.trim();
+  if (!trimmedValue) {
+    throw new Error(`Companion ${fieldName} cannot be empty.`);
+  }
+  return trimmedValue;
+}
+
+export function sanitizeCompanionMetadataUpdate(updates) {
+  const nextUpdates = {};
+  if (updates.name !== undefined) {
+    nextUpdates.name = sanitizeCompanionField(updates.name, "name");
+  }
+  if (updates.personality !== undefined) {
+    nextUpdates.personality = sanitizeCompanionField(updates.personality, "personality");
+  }
+  if (Object.keys(nextUpdates).length === 0) {
+    throw new Error("Provide --set-name and/or --set-personality.");
+  }
+  return nextUpdates;
+}
+
+export function getEditableCompanionFromConfig(config) {
+  const companion = getCompanionFromConfig(config);
+  if (!companion) {
+    throw new Error("Claude Code config does not contain an editable companion yet.");
+  }
+  return companion;
+}
+
 export function resolveClaudeState(options = {}) {
   const candidatePaths = options.configFile ? [options.configFile] : getClaudeStateFileCandidates();
   let firstValidationError;

@@ -1,6 +1,15 @@
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { getBackupFile, getClaudeStateFileCandidates, getDataDir, isClaudeStateFileCandidate, resolveClaudeStateFile } from "./config.js";
-import { getUuidFromConfig, isUuid, readJsonFile, resolveClaudeState, validateWritableConfig } from "./claude-state.js";
+import {
+  getCompanionFromConfig,
+  getEditableCompanionFromConfig,
+  getUuidFromConfig,
+  isUuid,
+  readJsonFile,
+  resolveClaudeState,
+  sanitizeCompanionMetadataUpdate,
+  validateWritableConfig
+} from "./claude-state.js";
 
 function readValidBackup(filePath, invalidMessage) {
   const backup = readJsonFile(filePath, "No cb-zoo backup found. Run cb-zoo --backup first.");
@@ -83,4 +92,19 @@ export function restoreUuid() {
     throw new Error("Backup file points to an unexpected Claude account state path. Fix or recreate backup.json before restoring.");
   }
   return applyUuid(backup.uuid, backup.stateFile ? { configFile: backup.stateFile } : undefined);
+}
+
+export function updateCompanionMetadata(updates, options = {}) {
+  const nextUpdates = sanitizeCompanionMetadataUpdate(updates);
+  const { configFile, config } = resolveClaudeState({ configFile: options.configFile, requireWritableConfig: true });
+  getEditableCompanionFromConfig(config);
+  config.companion = { ...config.companion, ...nextUpdates };
+  writeJsonFile(configFile, config);
+  return {
+    configFile,
+    companion: {
+      ...getCompanionFromConfig(config),
+      uuid: getUuidFromConfig(config, { allowLegacyUserId: true })
+    }
+  };
 }

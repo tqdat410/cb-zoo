@@ -6,7 +6,9 @@ import { rollFrom } from "./buddy-engine.js";
 import { formatCompanionSummary, getCurrentCompanion } from "./companion-state.js";
 import { animateGacha, quickReveal, showBuddyCard } from "./gacha-animation.js";
 import { displayCollection, loadCollection, saveToCollection } from "./collection.js";
-import { applyUuid, backupUuid, getCurrentUuid, hasBackup, restoreUuid } from "./uuid-manager.js";
+import { shouldLaunchTui } from "./launch-mode.js";
+import { launchTuiApp } from "./tui/app.js";
+import { applyUuid, backupUuid, getCurrentUuid, hasBackup, restoreUuid, updateCompanionMetadata } from "./uuid-manager.js";
 
 let scriptedAnswersPromise;
 
@@ -58,9 +60,12 @@ function showHelp() {
       "",
       "Options:",
       "  (none)            Gacha roll with animation",
+      "  --plain           Force the legacy plain CLI flow",
       "  -q, --quick       Roll without animation",
       "  -c, --collection  View your collection grid",
       "  --current         Show your current buddy",
+      "  --set-name        Update the current buddy name",
+      "  --set-personality Update the current buddy personality",
       "  -b, --backup      Backup your current Claude UUID",
       "  -r, --restore     Restore your backed-up UUID",
       "  -h, --help        Show this help"
@@ -76,6 +81,12 @@ async function showCurrentBuddy() {
   }
   const uuid = getCurrentUuid({ allowLegacyUserId: true });
   process.stdout.write(`${showBuddyCard(rollFrom(uuid))}\n`);
+}
+
+function showUpdatedCompanion(companion, configFile) {
+  const summary = formatCompanionSummary(companion);
+  process.stdout.write(`Updated companion metadata in ${configFile}\n`);
+  process.stdout.write(`${summary}\n`);
 }
 
 async function ensurePromptInputAvailable() {
@@ -126,8 +137,11 @@ async function main() {
   const { values } = parseArgs({
     options: {
       quick: { type: "boolean", short: "q", default: false },
+      plain: { type: "boolean", default: false },
       collection: { type: "boolean", short: "c", default: false },
       current: { type: "boolean", default: false },
+      "set-name": { type: "string" },
+      "set-personality": { type: "string" },
       backup: { type: "boolean", short: "b", default: false },
       restore: { type: "boolean", short: "r", default: false },
       help: { type: "boolean", short: "h", default: false }
@@ -139,12 +153,24 @@ async function main() {
     showHelp();
     return;
   }
+  if (shouldLaunchTui(values)) {
+    await launchTuiApp();
+    return;
+  }
   if (values.collection) {
     displayCollection();
     return;
   }
   if (values.current) {
     await showCurrentBuddy();
+    return;
+  }
+  if (values["set-name"] !== undefined || values["set-personality"] !== undefined) {
+    const result = updateCompanionMetadata({
+      name: values["set-name"],
+      personality: values["set-personality"]
+    });
+    showUpdatedCompanion(result.companion, result.configFile);
     return;
   }
   if (values.backup) {
