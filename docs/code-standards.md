@@ -39,6 +39,6 @@
 - Reject invalid backup or collection files before mutating config or local state
 - Validate collection state before roll mode creates backups or reveals new buddies
 - Refuse writes when the temporary `*.tmp` path already exists instead of following hostile or stale temp files
-- Keep cb-zoo state outside `.claude`, even when env overrides are supplied
-- Always keep backup and collection storage outside `.claude`
+- Keep cb-zoo state outside protected Claude state directories, including `.claude` and Windows `%APPDATA%\\Claude`, even when env overrides are supplied
+- Always keep backup and collection storage outside protected Claude state directories
 - Keep rendered sprites at 5 lines so CLI card layout stays stable

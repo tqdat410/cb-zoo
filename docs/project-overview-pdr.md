@@ -15,7 +15,7 @@
 
 - Roll a deterministic buddy from any UUID
 - Back up the current Claude UUID before first modification
-- Apply a new UUID into `~/.claude/.config.json`
+- Apply a new UUID into the resolved Claude account state file, preferring `~/.claude.json` or `$CLAUDE_CONFIG_DIR/.claude.json`
 - Restore the original UUID from `~/.cb-zoo/backup.json`
 - Save every roll to `~/.cb-zoo/collection.json`
 - Reject malformed UUID values and invalid Claude config shapes before config writes
@@ -34,11 +34,12 @@
 - Atomic JSON writes for config and collection files
 - BOM-tolerant JSON parsing for persisted state files
 - Fail closed on corrupt backup or collection data
-- Prevent cb-zoo state files from being redirected into `.claude` through env overrides
+- Prevent cb-zoo state files from being redirected into protected Claude state directories such as `.claude` or Windows `%APPDATA%\\Claude` through env overrides
 
 ## Risks
 
 - Claude Code may change the salt or config schema
+- Claude Code does not document `.claude.json` as a stable public API
 - Re-auth inside Claude Code may overwrite a rerolled UUID
 - Terminal ANSI support varies across shells
 
