@@ -44,6 +44,15 @@
 - `src/cli.js`
   Parses arguments and orchestrates rolling, applying, restoring, and collection views.
 
+- `scripts/check-release-contract.cjs`
+  Verifies publish-facing repository invariants, required files, and syntax across `src/`, `scripts/`, `test/`, and `test-support/`.
+
+- `scripts/smoke-cli.cjs`
+  Exercises stable CLI smoke paths against temp fixtures so release checks cover shipped command behavior without touching real user state.
+
+- `.github/workflows/ci.yml`
+  Runs cross-platform test jobs plus a non-publishing release-check job on Ubuntu and Windows.
+
 ## Data Flow
 
 1. Entry routing decides between the default TUI and explicit/plain CLI paths.
@@ -55,6 +64,13 @@
 7. If the user opens the TUI `Collection` view, they can inspect saved buddies, apply the selected UUID directly without removing the saved entry, or delete the selected entry after confirmation. Collection apply creates the UUID backup first when needed.
 8. If the user runs `--current` or opens the current-buddy TUI view, companion-state reads stored soul data, regenerates UUID-derived bones, and renders the merged summary.
 9. If the user edits the current buddy name or personality, UUID manager mutates only those stored companion metadata fields and leaves UUID-derived bones unchanged.
+
+## Release Verification Flow
+
+1. `npm run check` validates package publish contract, required repo files, and JavaScript syntax.
+2. `npm run smoke` runs temp-fixture CLI smoke checks for help, collection, current, and plain quick-roll flows.
+3. `npm run release:verify` chains contract checks, `npm test`, smoke checks, and `npm run test:coverage`.
+4. `npm run release:check` adds `npm pack --dry-run`, and GitHub Actions mirrors that gate on Ubuntu and Windows without publishing.
 
 ## Storage
 

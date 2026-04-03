@@ -3,11 +3,22 @@
   "version": "0.1.0",
   "description": "Claude Buddy Gacha tool for rolling, collecting, and applying Claude Code buddies",
   "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tqdat410/cb-zoo.git"
+  },
+  "homepage": "https://github.com/tqdat410/cb-zoo#readme",
+  "bugs": {
+    "url": "https://github.com/tqdat410/cb-zoo/issues"
+  },
   "bin": {
     "cb-zoo": "./src/cli.js"
   },
   "engines": {
     "node": ">=18"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "files": [
     "src/",
@@ -15,8 +26,13 @@
   ],
   "scripts": {
     "start": "node ./src/cli.js",
+    "check": "node ./scripts/check-release-contract.cjs",
+    "smoke": "node ./scripts/smoke-cli.cjs",
     "test": "node --test",
-    "test:coverage": "node --experimental-test-coverage --test"
+    "test:coverage": "node --experimental-test-coverage --test",
+    "release:verify": "npm run check && npm test && npm run smoke && npm run test:coverage",
+    "release:check": "npm run release:verify && npm pack --dry-run",
+    "prepublishOnly": "npm run release:verify"
   },
   "keywords": [
     "claude",

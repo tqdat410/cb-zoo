@@ -7,7 +7,10 @@ This repository currently contains a single CLI package named `cb-zoo`.
 ## Entry Points
 
 - `src/cli.js`: main executable for user interaction
-- `package.json`: package metadata, `bin` mapping, and test script
+- `package.json`: package metadata, `bin` mapping, release-verification scripts, and the `prepublishOnly` publish guard
+- `scripts/check-release-contract.cjs`: syntax and package-contract verification for publish readiness
+- `scripts/smoke-cli.cjs`: deterministic CLI smoke coverage for the shipped command surface
+- `.github/workflows/ci.yml`: push, pull-request, and manual CI gates for tests plus release-check verification without publish
 
 ## Key Behaviors
 
@@ -18,6 +21,8 @@ This repository currently contains a single CLI package named `cb-zoo`.
 - `CB_ZOO_DATA_DIR` is validated so cb-zoo state cannot be redirected into protected Claude state directories such as `.claude` or Windows `%APPDATA%\\Claude`.
 - Sprite rendering always returns a 5-line frame so reveal layout and hat placement stay aligned.
 - Terminal output supports both animated and plain-text reveal paths.
+- Release verification runs through `npm run release:verify`, which chains syntax/package checks, the full test suite, CLI smoke checks, and coverage.
+- `npm run release:check` adds `npm pack --dry-run`, and CI mirrors that gate on Ubuntu and Windows without publishing.
 
 ## Test Surface
 
@@ -29,7 +34,9 @@ This repository currently contains a single CLI package named `cb-zoo`.
 - Collection persistence and summary formatting
 - Corrupt collection rejection without overwriting local data
 - CLI help rendering
+- CLI smoke coverage for `--help`, `--collection`, `--current`, and plain quick-roll prompt behavior
 - Unknown-flag rejection
 - Invalid prompt input re-prompting without extra rolls
 - `FORCE_COLOR=0` ANSI disable behavior
 - Empty non-TTY stdin fail-fast before roll state changes
+- Package metadata and release script contract checks

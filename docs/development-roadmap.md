@@ -9,6 +9,9 @@
 
 ## Recent Hardening
 
+- Added npm release metadata, repo hygiene files, a committed lockfile, and a manual release runbook.
+- Added built-in release verification scripts for syntax, package contract, CLI smoke flows, coverage, and `npm pack --dry-run`.
+- Added GitHub Actions CI gates for cross-platform tests plus Ubuntu and Windows release-check lanes without automated publish.
 - Interactive TTY runs now enter a default centered cb-zoo TUI, while non-interactive and explicit flag flows stay on plain CLI-safe paths.
 - Added a lightweight raw-ANSI TUI runtime with a centered shared shell, keyboard navigation, roll stage, current buddy view, collection browser, and buddy profile editor.
 - Refreshed rarity accents so common buddies stay neutral, uncommon renders green, rare buddies render blue, epic stays magenta, legendary stays gold, and buddy frames inherit rarity color across roll/current/collection surfaces.
@@ -29,8 +32,8 @@
 ## Next Work
 
 - Add richer end-to-end terminal animation verification
-- Add publish metadata and release workflow when the repo is moved into git
 - Consider whether `cb-zoo` should pivot from UUID rerolling to companion inspection/export tooling for current Claude releases
 - Consider whether companion metadata editing should eventually support an interactive prompt alias in addition to explicit flags
+- Consider automated npm publish and provenance after the manual release flow settles
 - Continue tuning shell behavior under extreme terminal resize cases if future screens outgrow the current width cap
 - Re-check companion storage behavior if Claude Code changes its internal local-state schema again

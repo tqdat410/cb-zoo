@@ -27,6 +27,8 @@
 ## Testing
 
 - Use Node's built-in `node:test`
+- Keep the release gate in npm scripts: `check`, `smoke`, `release:verify`, and `release:check`
+- Keep `prepublishOnly` wired to `npm run release:verify` so manual publishes cannot skip verification
 - Add regression coverage for deterministic roll outputs
 - Lock sprite rendering to its 5-line output contract
 - Exercise filesystem flows through temp directories and env overrides, including invalid backup and collection fixtures

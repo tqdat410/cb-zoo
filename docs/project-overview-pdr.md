@@ -35,6 +35,8 @@
 - Node.js 18+
 - ESM only
 - Zero npm dependencies
+- Manual npm releases must pass the local `npm run release:check` gate before publish
+- GitHub Actions must verify test and release-check health without performing publish
 - No token or config leakage in logs
 - Restore terminal cursor/state cleanly after TUI exit or failure
 - Show a minimum-size warning instead of the full TUI when the terminal is smaller than `64x24`
@@ -53,6 +55,8 @@
 ## Validation
 
 - Node built-in tests pass with `npm test`
+- Local release verification passes with `npm run release:check`
+- GitHub Actions mirrors the release gates on push and pull request without publishing
 - CLI help and collection views run without Claude config access
 - TUI layout refuses sub-`64x24` terminals with a minimum-size warning instead of rendering clipped chrome
 - UUID backup/apply/restore flow preserves unrelated config fields and tolerates a UTF-8 BOM in Claude config

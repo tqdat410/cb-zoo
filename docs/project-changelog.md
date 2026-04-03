@@ -2,6 +2,11 @@
 
 ## 2026-04-03
 
+- Added public npm package metadata, `.gitignore`, `LICENSE`, and a committed lockfile so the repo can run `npm ci` and publish cleanly
+- Added `check`, `smoke`, `release:verify`, and `release:check` scripts plus a `prepublishOnly` gate for manual npm releases
+- Added deterministic CLI smoke checks and package release-readiness regression coverage
+- Added a GitHub Actions workflow for cross-platform test runs and Ubuntu plus Windows release-check lanes without automated publish
+- Added a manual release runbook in `docs/deployment-guide.md`
 - Changed the TUI rarity palette so common buddies stay neutral, uncommon renders green, rare buddies render blue, epic stays magenta, and legendary stays gold
 - Extended rarity accents to the buddy outer frame in reveal, current, and collection surfaces
 - Renamed the TUI `Archive` surface to `Collection`

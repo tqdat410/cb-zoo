@@ -1,120 +1,74 @@
 # cb-zoo
 
-`cb-zoo` is a zero-dependency Node.js terminal app for rolling, collecting, and applying Claude Code buddies with a centered retro TUI shell and a gacha-style reveal flow.
+`cb-zoo` is a zero-dependency terminal app for rolling, collecting, and applying Claude Code buddies.
 
-## Features
+## What It Does
 
-- Deterministic buddy rolls from the active Claude UUID using the current Claude buddy hash pipeline
-- Default interactive TUI with a centered cb-zoo shell
-- Shared rarity accents across reveal, current, and collection views: common neutral, uncommon green, rare blue, epic magenta, legendary gold
-- Real `--current` companion inspection that merges stored soul data with UUID-regenerated buddy bones
-- Cross-platform Claude UUID backup, apply, and restore flow
-- Local collection tracking in `~/.cb-zoo/collection.json`
-- Animated reveal mode plus instant `--quick` mode
-- No npm dependencies
+- Rolls buddies from Claude UUID state
+- Opens a default interactive TUI in a real terminal
+- Supports `--quick`, `--current`, `--collection`, `--backup`, and `--restore`
+- Stores your collection locally in `~/.cb-zoo/collection.json`
+- Backs up the original Claude UUID before first mutation
+- Runs with no runtime npm dependencies
+
+## Install
+
+```bash
+npm install -g cb-zoo
+```
+
+Or run it without a global install:
+
+```bash
+npx cb-zoo --help
+```
 
 ## Requirements
 
 - Node.js 18+
 - Claude Code initialized at least once so its account state file exists, usually `~/.claude.json` or `$CLAUDE_CONFIG_DIR/.claude.json`
 
-## Usage
+## Quick Start
 
 ```bash
-npm test
-npm run test:coverage
-node ./src/cli.js --help
-node ./src/cli.js
-node ./src/cli.js --plain
-printf 'q\n' | node ./src/cli.js --quick
-node ./src/cli.js --collection
-node ./src/cli.js --current
-node ./src/cli.js --set-name "Nova"
-node ./src/cli.js --set-personality "Calm under pressure."
-node ./src/cli.js --set-name "Nova" --set-personality "Calm under pressure."
-node ./src/cli.js --backup
-node ./src/cli.js --restore
+cb-zoo
+cb-zoo --quick
+cb-zoo --current
+cb-zoo --collection
+cb-zoo --backup
+cb-zoo --restore
 ```
 
-## Default Mode
+## Commands
 
-- Interactive TTY runs now open the centered TUI by default.
-- Non-interactive runs and explicit command flags keep using the plain CLI-safe paths.
-- Use `--plain` if you want the legacy line-oriented roll flow in a real terminal.
-- If the terminal is smaller than `64x24`, the TUI shows a minimum-size warning instead of drawing a broken layout.
-
-## Roll Flow
-
-- TUI roll mode reveals a buddy first, then lets you `Equip`, `Add`, `Reroll`, or go `Back`.
-- Revealed buddies stay unsaved until you choose `Add` or `Equip`.
-- In the TUI, `Add` saves the buddy to the collection and `Equip` saves then applies it immediately.
-- The TUI `Collection` screen can apply the selected buddy without removing it from `collection.json`, or delete it after an explicit confirmation.
-- Plain CLI roll mode still uses the legacy prompt flow.
-- `--quick` skips animation, but it still uses the same prompt flow.
-- In non-interactive use, pipe input such as `q`, `r`, or `a`. Empty stdin fails fast before backup or collection writes.
-
-## Environment Overrides
-
-These are optional and mainly useful for testing or sandboxed runs:
-
-- `CLAUDE_CONFIG_DIR`
-- `CB_ZOO_HOME`
-- `CB_ZOO_CLAUDE_DIR`
-- `CB_ZOO_CONFIG_FILE`
-- `CB_ZOO_DATA_DIR`
+- `cb-zoo`
+  Opens the default interactive TUI when run in a real terminal.
+- `cb-zoo --quick`
+  Uses the plain fast reveal flow.
+- `cb-zoo --plain`
+  Forces the legacy non-TUI CLI flow.
+- `cb-zoo --current`
+  Shows the current buddy by merging stored profile data with UUID-derived traits.
+- `cb-zoo --collection`
+  Shows the saved collection.
+- `cb-zoo --set-name "Nova"`
+  Updates the stored companion name.
+- `cb-zoo --set-personality "Calm under pressure."`
+  Updates the stored companion personality.
+- `cb-zoo --backup`
+  Creates the UUID backup if it does not already exist.
+- `cb-zoo --restore`
+  Restores the backed-up UUID.
 
 ## Safety Notes
 
 - The tool edits `oauthAccount.accountUuid` for rerolls and can also edit `companion.name` / `companion.personality` for the current stored buddy.
-- Current Claude Code builds store `companion.name`, `companion.personality`, and `hatchedAt`, but rarity/species/hat/stats are regenerated from the active UUID.
-- Companion metadata edits require an existing stored `companion` object and do not change UUID-derived bones.
-- Applying a new UUID clears the stored companion cache so Claude Code can hatch a fresh soul for the new bones.
-- Current canonical target is `~/.claude.json` or `$CLAUDE_CONFIG_DIR/.claude.json`.
-- Legacy/community fallback paths are used only when higher-priority `.claude.json` candidates are missing or unusable, including `~/.claude/.config.json` and `%APPDATA%\\Claude\\config.json` on Windows.
 - The original UUID is backed up to `~/.cb-zoo/backup.json` on first run.
-- Restore stays pinned to the same Claude state file that was originally backed up, and rejects tampered backup target paths.
-- Re-authenticating Claude Code can overwrite the rerolled UUID, so keep the backup.
-- Unknown flags fail fast, and roll mode refuses to proceed when backup data is corrupt or stdin is unavailable.
 - Claude Code does not document this file schema as a stable public API, so future releases may change it.
+- Re-authenticating Claude Code can overwrite the rerolled UUID, so keep the backup.
 
-## Project Layout
+## For Maintainers
 
-```text
-src/
-  buddy-engine.js
-  claude-state.js
-  cli.js
-  collection.js
-  companion-state.js
-  config.js
-  gacha-animation.js
-  launch-mode.js
-  sprites.js
-  tui/
-    app.js
-    controller.js
-    read-keypress.js
-    render-helpers.js
-    render-layout.js
-    roll-flow.js
-    state.js
-    views/
-      collection-view.js
-      current-view.js
-      edit-view.js
-      home-view.js
-      roll-view.js
-  uuid-manager.js
-  wyhash.js
-test/
-  buddy-engine.test.js
-  companion-editing.test.js
-  companion-state.test.js
-  integration-flows.test.js
-  launch-mode.test.js
-  tui-controller.test.js
-  tui-layout.test.js
-  tui-renderers.test.js
-test-support/
-  with-temp-environment.js
-```
+- Manual release steps live in [docs/deployment-guide.md](./docs/deployment-guide.md).
+- Local release gate: `npm run release:check`
+- CI workflow: [`.github/workflows/ci.yml`](./.github/workflows/ci.yml)
