@@ -9,17 +9,20 @@
 
 ## Recent Hardening
 
+- Unified local cb-zoo state under `~/.cb-zoo/settings.json`, auto-migrating legacy `backup.json` and storing backup metadata, `maxBuddy`, and pending roll state in one file.
+- Collection surfaces now show count/capacity, default `maxBuddy` remains `50`, and roll Add/Equip paths refuse to overflow a full collection.
+- TUI roll state now persists unsaved reveals, keeps them on Back, and re-enters the revealed buddy through "Resume Roll" after app restart.
 - Added npm release metadata, repo hygiene files, a committed lockfile, and a manual release runbook.
 - Added built-in release verification scripts for syntax, package contract, CLI smoke flows, coverage, and `npm pack --dry-run`.
 - Added GitHub Actions CI gates for cross-platform tests plus Ubuntu and Windows release-check lanes without automated publish.
 - Interactive TTY runs now enter a default centered cb-zoo TUI, while non-interactive and explicit flag flows stay on plain CLI-safe paths.
 - Added a lightweight raw-ANSI TUI runtime with a centered shared shell, keyboard navigation, roll stage, current buddy view, collection browser, and buddy profile editor.
 - Refreshed rarity accents so common buddies stay neutral, uncommon renders green, rare buddies render blue, epic stays magenta, legendary stays gold, and buddy frames inherit rarity color across roll/current/collection surfaces.
-- Upgraded the TUI `Collection` view so it can apply the selected buddy without removing it from storage or delete it after an explicit confirmation step.
-- Refined the TUI roll stage so reveal no longer auto-saves, `Add` stores explicitly, `Equip` stores and applies in one step, and the shell now uses rarity accents without the old flat blue background fill.
+- Upgraded the TUI Collection view so it can apply the selected buddy without removing it from storage or delete it after an explicit confirmation step.
+- Refined the TUI roll stage so reveal no longer auto-saves, Add stores explicitly, Equip stores and applies in one step, and the shell now uses rarity accents without the old flat blue background fill.
 - Tiny terminals now show a minimum-size warning instead of rendering a clipped TUI shell.
 - Claude config parsing now tolerates a leading UTF-8 BOM.
-- Invalid `backup.json`, malformed UUID values, and bad config container shapes now block backup/apply/restore flow until the state is fixed.
+- Invalid `settings.json`, malformed backup payloads, malformed UUID values, and bad config container shapes now block backup/apply/restore flow until the state is fixed.
 - Companion metadata edits now allow updating stored buddy `name` and `personality` without changing UUID-derived bones, and reject blank values or missing companion state.
 - Invalid `collection.json` now blocks roll mode before backup, reveal, or collection writes instead of being silently replaced.
 - Existing temporary write paths now block config and collection writes instead of being followed.

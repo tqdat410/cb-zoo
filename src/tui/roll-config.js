@@ -16,7 +16,8 @@ export function createIdleRollState() {
     previewColor: "",
     previewBurst: "",
     previewStars: "",
-    savedToCollection: false
+    savedToCollection: false,
+    collectionFull: false
   };
 }
 

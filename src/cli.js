@@ -114,10 +114,19 @@ async function gachaLoop(isQuick) {
     } else {
       await animateGacha(buddy);
     }
-    saveToCollection(buddy);
+    let collectionFull = false;
+    try {
+      saveToCollection(buddy);
+    } catch (error) {
+      if (!error.message.startsWith("Collection full")) {
+        throw error;
+      }
+      collectionFull = true;
+      process.stdout.write(`${error.message}\n`);
+    }
     while (true) {
-      const answer = (await prompt("[A]pply  [R]eroll  [Q]uit: ")).toLowerCase();
-      if (answer === "a" || answer === "apply") {
+      const answer = (await prompt(collectionFull ? "[R]eroll  [Q]uit: " : "[A]pply  [R]eroll  [Q]uit: ")).toLowerCase();
+      if (!collectionFull && (answer === "a" || answer === "apply")) {
         const result = applyUuid(buddy.uuid);
         process.stdout.write(`Applied UUID ${result.uuid}\n${result.warning}\n`);
         return;
@@ -128,7 +137,7 @@ async function gachaLoop(isQuick) {
       if (answer === "r" || answer === "reroll") {
         break;
       }
-      process.stdout.write("Please choose A, R, or Q.\n");
+      process.stdout.write(collectionFull ? "Please choose R or Q.\n" : "Please choose A, R, or Q.\n");
     }
   }
 }

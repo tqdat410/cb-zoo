@@ -1,26 +1,14 @@
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
-import { getBackupFile, getClaudeStateFileCandidates, getDataDir, isClaudeStateFileCandidate, resolveClaudeStateFile } from "./config.js";
+import { existsSync, renameSync, writeFileSync } from "node:fs";
+import { getSettingsFile, isClaudeStateFileCandidate } from "./config.js";
 import {
   getCompanionFromConfig,
   getEditableCompanionFromConfig,
   getUuidFromConfig,
   isUuid,
-  readJsonFile,
   resolveClaudeState,
-  sanitizeCompanionMetadataUpdate,
-  validateWritableConfig
+  sanitizeCompanionMetadataUpdate
 } from "./claude-state.js";
-
-function readValidBackup(filePath, invalidMessage) {
-  const backup = readJsonFile(filePath, "No cb-zoo backup found. Run cb-zoo --backup first.");
-  if (!isUuid(backup?.uuid)) {
-    throw new Error(invalidMessage);
-  }
-  if (backup.stateFile !== undefined && typeof backup.stateFile !== "string") {
-    throw new Error("Backup file contains an invalid stateFile path.");
-  }
-  return backup;
-}
+import { getBackupData, setBackupData } from "./settings-manager.js";
 
 
 function writeJsonFile(filePath, payload) {
@@ -32,22 +20,12 @@ function writeJsonFile(filePath, payload) {
   renameSync(tempFile, filePath);
 }
 
-export function ensureDataDir() {
-  mkdirSync(getDataDir(), { recursive: true });
-  return getDataDir();
-}
-
 export function hasBackup() {
-  const backupFile = getBackupFile();
-  if (!existsSync(backupFile)) {
-    return false;
-  }
   try {
-    readValidBackup(backupFile, "Backup file is missing a valid UUID.");
+    return getBackupData() !== null;
   } catch (error) {
-    throw new Error(`cb-zoo backup exists but is invalid. Fix or delete backup.json before rolling again. ${error.message}`);
+    throw new Error(`cb-zoo backup exists but is invalid. Fix settings.json before rolling again. ${error.message}`);
   }
-  return true;
 }
 
 export function getCurrentUuid(options = {}) {
@@ -56,19 +34,18 @@ export function getCurrentUuid(options = {}) {
 }
 
 export function backupUuid() {
-  ensureDataDir();
-  const backupFile = getBackupFile();
-  if (existsSync(backupFile)) {
-    try {
-      return { created: false, filePath: backupFile, uuid: readValidBackup(backupFile, "Backup file is missing a valid UUID.").uuid };
-    } catch (error) {
-      throw new Error(`cb-zoo backup exists but is invalid. Fix or delete backup.json before continuing. ${error.message}`);
+  try {
+    const existing = getBackupData();
+    if (existing) {
+      return { created: false, filePath: getSettingsFile(), uuid: existing.uuid };
     }
+  } catch (error) {
+    throw new Error(`cb-zoo backup exists but is invalid. Fix settings.json before continuing. ${error.message}`);
   }
   const { configFile: stateFile, config } = resolveClaudeState({ requireWritableConfig: true });
   const uuid = getUuidFromConfig(config);
-  writeJsonFile(backupFile, { uuid, stateFile, backedUpAt: new Date().toISOString() });
-  return { created: true, filePath: backupFile, uuid, stateFile };
+  setBackupData({ uuid, stateFile, backedUpAt: new Date().toISOString() });
+  return { created: true, filePath: getSettingsFile(), uuid, stateFile };
 }
 
 export function applyUuid(newUuid, options = {}) {
@@ -87,9 +64,17 @@ export function applyUuid(newUuid, options = {}) {
 }
 
 export function restoreUuid() {
-  const backup = readValidBackup(getBackupFile(), "Backup file is missing a valid UUID.");
+  let backup;
+  try {
+    backup = getBackupData();
+  } catch (error) {
+    throw new Error(`cb-zoo backup exists but is invalid. Fix settings.json before restoring. ${error.message}`);
+  }
+  if (!backup) {
+    throw new Error("No valid backup found. Run cb-zoo --backup first.");
+  }
   if (backup.stateFile && !isClaudeStateFileCandidate(backup.stateFile)) {
-    throw new Error("Backup file points to an unexpected Claude account state path. Fix or recreate backup.json before restoring.");
+    throw new Error("Backup file points to an unexpected Claude account state path. Fix or recreate settings.json before restoring.");
   }
   return applyUuid(backup.uuid, backup.stateFile ? { configFile: backup.stateFile } : undefined);
 }

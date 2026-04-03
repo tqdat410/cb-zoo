@@ -2,14 +2,17 @@
 
 ## 2026-04-03
 
-- Added public npm package metadata, `.gitignore`, `LICENSE`, and a committed lockfile so the repo can run `npm ci` and publish cleanly
+- Replaced standalone `~/.cb-zoo/backup.json` storage with unified `~/.cb-zoo/settings.json`, with one-time legacy backup migration on first settings load
+- Added `maxBuddy` capacity handling with a default of `50`, collection count/capacity display, and full-collection enforcement during roll Add and Equip
+- Persisted rolled-but-unsaved TUI buddies as `pendingBuddy` so Back and app relaunch can resume the reveal until Add or Equip clears it
+- Added public npm package metadata, `.gitignore`, LICENSE, and a committed lockfile so the repo can run `npm ci` and publish cleanly
 - Added `check`, `smoke`, `release:verify`, and `release:check` scripts plus a `prepublishOnly` gate for manual npm releases
 - Added deterministic CLI smoke checks and package release-readiness regression coverage
 - Added a GitHub Actions workflow for cross-platform test runs and Ubuntu plus Windows release-check lanes without automated publish
 - Added a manual release runbook in `docs/deployment-guide.md`
 - Changed the TUI rarity palette so common buddies stay neutral, uncommon renders green, rare buddies render blue, epic stays magenta, and legendary stays gold
 - Extended rarity accents to the buddy outer frame in reveal, current, and collection surfaces
-- Renamed the TUI `Archive` surface to `Collection`
+- Renamed the TUI Archive surface to Collection
 - Added TUI collection actions for applying the selected buddy without removing it from storage and deleting it behind an inline confirmation step
 - Center-aligned the default TUI shell on wide terminals instead of anchoring it to the left edge
 - Replaced the hand-drawn home banner with a layout-safe framed intro block to stop right-edge drift
@@ -20,8 +23,8 @@
 ## 2026-04-02
 
 - Refined the cb-zoo TUI roll flow so revealed buddies are not auto-added to the collection
-- Added explicit TUI roll actions for `Equip`, `Add`, `Reroll`, and `Back`
-- Made TUI `Equip` save the revealed buddy before applying its UUID, while `Add` saves without applying
+- Added explicit TUI roll actions for Equip, Add, Reroll, and Back
+- Made TUI Equip save the revealed buddy before applying its UUID, while Add saves without applying
 - Removed the solid blue TUI background fill and leaned on rarity-colored accents instead
 - Switched interactive no-flag runs to a default centered TUI with keyboard navigation and shared shell layout
 - Added a raw ANSI TUI layer for home, roll, current, collection, and edit buddy flows while keeping explicit CLI flags and non-TTY fallback behavior
@@ -49,7 +52,7 @@
 - Added Node built-in tests for deterministic rolls and filesystem flows
 - Added a coverage script and regression tests for CLI safety paths
 - Hardened JSON parsing so BOM-prefixed Claude config files still load
-- Rejected invalid `backup.json` payloads and malformed UUID values before backup/apply/restore paths can mutate config
+- Rejected invalid backup payloads and malformed UUID values before backup/apply/restore paths can mutate config
 - Rejected corrupt `collection.json` before roll mode can create backups, reveal buddies, or overwrite local data
 - Rejected pre-existing temp write paths instead of following them during config and collection writes
 - Rejected `CB_ZOO_DATA_DIR` overrides that point into `.claude`

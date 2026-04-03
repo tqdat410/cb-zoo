@@ -1,7 +1,8 @@
 import { getScreenMetrics } from "../render-layout.js";
 import { ANSI, centerBlockLines, createBoxLines } from "../render-helpers.js";
+import { getPendingBuddy } from "../../settings-manager.js";
 
-const MENU_ITEMS = [
+const BASE_MENU_ITEMS = [
   { id: "roll", label: "Roll Buddy" },
   { id: "current", label: "Current Buddy" },
   { id: "collection", label: "Collection" },
@@ -12,11 +13,19 @@ const MENU_ITEMS = [
 ];
 
 export function getHomeMenuItems() {
-  return MENU_ITEMS;
+  const hasPendingBuddy = getPendingBuddy() !== null;
+  return BASE_MENU_ITEMS.map((item) => {
+    if (item.id !== "roll") {
+      return item;
+    }
+    return { ...item, label: hasPendingBuddy ? "Resume Roll" : item.label };
+  });
 }
 
 export function renderHomeView(state, terminal = {}) {
   const { innerWidth } = getScreenMetrics(terminal);
+  const hasPendingBuddy = getPendingBuddy() !== null;
+  const menuItems = getHomeMenuItems();
   const heroLines = centerBlockLines(
     createBoxLines(
       ["Roll, collect, and apply Claude buddies.", "Keyboard-first, no filler."],
@@ -25,7 +34,7 @@ export function renderHomeView(state, terminal = {}) {
     innerWidth
   );
   const bodyLines = [...heroLines, ""];
-  for (const [index, item] of MENU_ITEMS.entries()) {
+  for (const [index, item] of menuItems.entries()) {
     const selected = index === state.menuIndex;
     bodyLines.push(
       selected
@@ -35,7 +44,7 @@ export function renderHomeView(state, terminal = {}) {
   }
   return {
     title: "HOME",
-    subtitle: "Claude buddy control deck",
+    subtitle: hasPendingBuddy ? "Claude buddy control deck  Pending roll ready" : "Claude buddy control deck",
     bodyLines,
     footer: "Up/Down move  Enter select  Q quit",
     status: state.statusMessage || "Ready to roll."

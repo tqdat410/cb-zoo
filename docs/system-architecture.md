@@ -17,8 +17,11 @@
 - `src/companion-state.js`
   Reads the current stored companion, merges it with UUID-regenerated buddy bones for `--current`, and formats the current companion summary card.
 
+- `src/settings-manager.js`
+  Owns `~/.cb-zoo/settings.json`, migrates legacy `backup.json`, validates and normalizes backup data plus `maxBuddy` and `pendingBuddy`, and persists atomic settings writes.
+
 - `src/uuid-manager.js`
-  Owns atomic Claude-state and backup writes, validates backup payloads, rejects pre-existing temp write paths, creates the first UUID backup, applies UUID changes, updates current companion metadata, and restores the backup.
+  Owns atomic Claude-state writes, delegates backup persistence to `settings-manager`, rejects pre-existing temp write paths, creates the first UUID backup, applies UUID changes, updates current companion metadata, and restores the backup.
 
 - `src/sprites.js`
   Stores ASCII species bodies and hat overlays, then renders a fixed 5-line sprite from roll traits.
@@ -39,7 +42,7 @@
   Implements the centered cb-zoo TUI runtime: keypress handling, framed shell rendering, state transitions, roll flow, and individual views.
 
 - `src/collection.js`
-  Validates persisted collection state, rejects pre-existing temp write paths, appends minimal roll entries only when the user saves a reveal, and removes saved entries on confirmed collection deletes.
+  Validates persisted collection state, rejects pre-existing temp write paths, enforces `maxBuddy` capacity from settings, appends minimal roll entries only when the user saves a reveal, and removes saved entries on confirmed collection deletes.
 
 - `src/cli.js`
   Parses arguments and orchestrates rolling, applying, restoring, and collection views.
@@ -56,14 +59,16 @@
 ## Data Flow
 
 1. Entry routing decides between the default TUI and explicit/plain CLI paths.
-2. TUI or CLI validates existing collection state before roll mode creates backups or reveals a new buddy.
+2. TUI or CLI validates existing collection state, and settings-backed flows load `~/.cb-zoo/settings.json` or migrate legacy `backup.json` into it on first read.
 3. Buddy engine rolls deterministic traits from the UUID via wyhash-seeded Mulberry32.
-4. TUI reveal stages or plain animation render the buddy card without persisting the reveal yet.
-5. If the user chooses `Add` or `Equip`, collection storage appends a minimal record to `~/.cb-zoo/collection.json` only after the existing file parses as a valid buddy-entry array.
-6. If the user chooses `Equip`, UUID manager updates the resolved Claude account state file after the collection write succeeds.
-7. If the user opens the TUI `Collection` view, they can inspect saved buddies, apply the selected UUID directly without removing the saved entry, or delete the selected entry after confirmation. Collection apply creates the UUID backup first when needed.
-8. If the user runs `--current` or opens the current-buddy TUI view, companion-state reads stored soul data, regenerates UUID-derived bones, and renders the merged summary.
-9. If the user edits the current buddy name or personality, UUID manager mutates only those stored companion metadata fields and leaves UUID-derived bones unchanged.
+4. Plain CLI reveal renders the buddy card and immediately tries to save the roll into `~/.cb-zoo/collection.json`, while the default TUI reveal persists the rolled buddy as `settings.pendingBuddy` and waits for an explicit Add or Equip.
+5. If the user chooses Add or Equip from the TUI roll screen, collection storage appends a minimal record to `~/.cb-zoo/collection.json` only after the existing file parses as a valid buddy-entry array and current count is below `maxBuddy` (`50` by default).
+6. If the user chooses Back from the TUI roll screen, cb-zoo returns home without mutating collection or UUID state and keeps `pendingBuddy` so the home action becomes "Resume Roll".
+7. If the user chooses Equip, UUID manager updates the resolved Claude account state file after the collection write succeeds. If pending-clear or UUID-apply fails, the collection save is rolled back and the pending buddy is restored.
+8. If the user opens the TUI Collection view, they can inspect saved buddies, see current count/capacity, apply the selected UUID directly without removing the saved entry, or delete the selected entry after confirmation. Collection apply creates the UUID backup first when needed.
+9. If the user relaunches the TUI or re-enters roll while `pendingBuddy` exists, controller/state rebuild the revealed roll state and resume that buddy.
+10. If the user runs `--current` or opens the current-buddy TUI view, companion-state reads stored soul data, regenerates UUID-derived bones, and renders the merged summary.
+11. If the user edits the current buddy name or personality, UUID manager mutates only those stored companion metadata fields and leaves UUID-derived bones unchanged.
 
 ## Release Verification Flow
 
@@ -78,7 +83,11 @@
   - preferred: `~/.claude.json`
   - supported override: `$CLAUDE_CONFIG_DIR/.claude.json`
   - fallback-only legacy/community paths when preferred files are missing or unusable: `~/.claude/.config.json`, `%APPDATA%\\Claude\\config.json`
-- Backup: `~/.cb-zoo/backup.json`
+- Settings: `~/.cb-zoo/settings.json`
+  - `backup`: original UUID plus pinned Claude state file metadata
+  - `maxBuddy`: positive integer collection capacity, default `50`
+  - `pendingBuddy`: last revealed-but-unsaved TUI buddy, cleared on successful Add or Equip
+  - legacy `backup.json` is migrated into `settings.json` on first settings load
 - Collection: `~/.cb-zoo/collection.json`
 
 ## Failure Handling
@@ -89,8 +98,11 @@
 - Companion metadata edits fail closed when the resolved Claude state has no valid stored companion or when trimmed edit values are empty.
 - TUI startup must restore terminal state on exit or thrown errors.
 - TUI layout falls back to a minimum-size warning when the terminal is smaller than `64x24`.
-- Pre-existing temp write paths are rejected before config or collection writes.
+- Pre-existing temp write paths are rejected before config, settings, or collection writes.
 - Missing backup throws a restore-specific error.
-- Corrupt existing backups block roll mode and backup/apply/restore paths before any config or collection mutation.
+- Invalid `settings.json` content blocks settings-backed flows until the file is fixed or removed.
+- Malformed backup data inside `settings.json` blocks backup/apply/restore paths before any config mutation.
+- Invalid `pendingBuddy` payloads are dropped to `null` on load instead of resuming bad state.
 - Invalid collection JSON or invalid entry shapes block roll mode before backup, reveal, or collection writes, and preserve the existing file for manual recovery.
+- Collection saves fail with `Collection full (n/max)` once saved entries reach `maxBuddy`, and failed TUI Add/Equip keeps the pending buddy available to resume.
 - `CB_ZOO_DATA_DIR` cannot resolve to protected Claude state directories such as `.claude` or Windows `%APPDATA%\\Claude`, or any nested path inside them.

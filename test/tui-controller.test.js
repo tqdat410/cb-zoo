@@ -3,10 +3,11 @@ import assert from "node:assert/strict";
 import { existsSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { deleteCollectionEntry, loadCollection, saveToCollection } from "../src/collection.js";
+import { getPendingBuddy, saveSettings } from "../src/settings-manager.js";
 import { rollFrom } from "../src/buddy-engine.js";
 import { createKeypressHandler } from "../src/tui/controller.js";
 import { applyRollAction, runRollSequence } from "../src/tui/roll-flow.js";
-import { createInitialState, openEdit, syncCollection, syncCurrent } from "../src/tui/state.js";
+import { createInitialState, openEdit, renderScreen, syncCollection, syncCurrent } from "../src/tui/state.js";
 import { withTempEnvironment } from "../test-support/with-temp-environment.js";
 
 test("controller moves around home and opens edit from current view", async () => {
@@ -139,8 +140,9 @@ test("roll flow creates backup but does not auto-store a revealed buddy", async 
     assert.equal(state.roll.phase, "revealed");
     assert.equal(state.collectionEntries.length, 0);
     assert.equal(state.roll.savedToCollection, false);
-    assert.equal(existsSync(join(dataDir, "backup.json")), true);
+    assert.equal(existsSync(join(dataDir, "settings.json")), true);
     assert.equal(existsSync(join(dataDir, "collection.json")), false);
+    assert.equal(getPendingBuddy().uuid, state.roll.buddy.uuid);
   });
 });
 
@@ -159,6 +161,7 @@ test("applyRollAction add stores a reveal exactly once", async () => {
     assert.equal(loadCollection().length, 1);
     assert.equal(state.collectionEntries.length, 1);
     assert.equal(state.statusMessage, "Buddy already saved for this roll.");
+    assert.equal(getPendingBuddy(), null);
   });
 });
 
@@ -173,6 +176,41 @@ test("applyRollAction equip stores the reveal and mutates UUID", async () => {
     assert.equal(state.screen, "home");
     assert.equal(loadCollection().length, 1);
     assert.equal(readConfig().oauthAccount.accountUuid, rolledUuid);
+    assert.equal(getPendingBuddy(), null);
+  });
+});
+
+test("applyRollAction add rolls back collection save if pending clear fails", async () => {
+  await withTempEnvironment(async ({ dataDir }) => {
+    const state = createInitialState();
+    await runRollSequence(state, () => {});
+    state.roll.actionIndex = 1;
+    writeFileSync(join(dataDir, "settings.json.tmp"), "placeholder", "utf8");
+
+    await applyRollAction(state, () => {});
+
+    assert.equal(state.screen, "roll");
+    assert.equal(state.roll.savedToCollection, false);
+    assert.equal(loadCollection().length, 0);
+    assert.equal(getPendingBuddy().uuid, state.roll.buddy.uuid);
+    assert.match(state.statusMessage, /existing temporary file/i);
+  });
+});
+
+test("applyRollAction equip rolls back collection save if pending clear fails before apply", async () => {
+  await withTempEnvironment(async ({ dataDir, readConfig }) => {
+    const state = createInitialState();
+    await runRollSequence(state, () => {});
+    writeFileSync(join(dataDir, "settings.json.tmp"), "placeholder", "utf8");
+
+    await applyRollAction(state, () => {});
+
+    assert.equal(state.screen, "roll");
+    assert.equal(state.roll.savedToCollection, false);
+    assert.equal(loadCollection().length, 0);
+    assert.equal(getPendingBuddy().uuid, state.roll.buddy.uuid);
+    assert.equal(readConfig().oauthAccount.accountUuid, "73e7fce7-9a2a-40b1-b78e-11571f33011a");
+    assert.match(state.statusMessage, /existing temporary file/i);
   });
 });
 
@@ -180,6 +218,7 @@ test("applyRollAction handles back navigation without mutating UUID or collectio
   await withTempEnvironment(async ({ readConfig }) => {
     const state = createInitialState();
     await runRollSequence(state, () => {});
+    const rolledUuid = state.roll.buddy.uuid;
     state.roll.actionIndex = 3;
 
     await applyRollAction(state, () => {});
@@ -187,6 +226,7 @@ test("applyRollAction handles back navigation without mutating UUID or collectio
     assert.equal(state.screen, "home");
     assert.equal(loadCollection().length, 0);
     assert.equal(readConfig().oauthAccount.accountUuid, "73e7fce7-9a2a-40b1-b78e-11571f33011a");
+    assert.equal(getPendingBuddy().uuid, rolledUuid);
   });
 });
 
@@ -212,6 +252,7 @@ test("controller supports roll shortcuts, reroll, and escape back", async () => 
     assert.equal(state.roll.phase, "revealed");
     assert.notEqual(state.roll.buddy.uuid, firstUuid);
     assert.equal(loadCollection().length, 1);
+    assert.equal(getPendingBuddy().uuid, state.roll.buddy.uuid);
 
     await handler({ name: "escape" });
     assert.equal(state.screen, "home");
@@ -220,7 +261,7 @@ test("controller supports roll shortcuts, reroll, and escape back", async () => 
 
 test("controller clears busy when roll start fails", async () => {
   await withTempEnvironment(async ({ dataDir }) => {
-    writeFileSync(join(dataDir, "backup.json"), "{not-json", "utf8");
+    writeFileSync(join(dataDir, "settings.json"), "{not-json", "utf8");
     const state = createInitialState();
     const handler = createKeypressHandler(state, () => {});
 
@@ -228,7 +269,7 @@ test("controller clears busy when roll start fails", async () => {
 
     assert.equal(state.screen, "home");
     assert.equal(state.busy, false);
-    assert.match(state.statusMessage, /backup exists but is invalid/i);
+    assert.match(state.statusMessage, /settings exists but is invalid/i);
   });
 });
 
@@ -238,10 +279,12 @@ test("equip rollback removes collection entry when apply fails", async () => {
     const state = createInitialState();
     await runRollSequence(state, () => {});
 
-    await assert.rejects(() => applyRollAction(state, () => {}), /existing temporary file/i);
+    await applyRollAction(state, () => {});
 
+    assert.equal(state.screen, "roll");
     assert.equal(state.roll.savedToCollection, false);
     assert.equal(loadCollection().length, 0);
+    assert.match(state.statusMessage, /existing temporary file/i);
   });
 });
 
@@ -272,7 +315,78 @@ test("collection apply updates Claude UUID without removing the entry", async ()
     assert.equal(loadCollection().length, 1);
     assert.equal(state.screen, "collection");
     assert.equal(state.statusMessage, `Applied ${buddy.species}. Restart Claude Code.`);
-    assert.equal(existsSync(join(dataDir, "backup.json")), true);
+    assert.equal(existsSync(join(dataDir, "settings.json")), true);
+  });
+});
+
+test("controller resumes a pending buddy from the home screen", async () => {
+  await withTempEnvironment(async () => {
+    const pendingBuddy = rollFrom("11111111-1111-4111-8111-111111111111");
+    saveSettings({ backup: null, maxBuddy: 50, pendingBuddy });
+    const state = createInitialState();
+    const handler = createKeypressHandler(state, () => {});
+
+    await handler({ name: "enter" });
+
+    assert.equal(state.screen, "roll");
+    assert.equal(state.roll.phase, "revealed");
+    assert.equal(state.roll.buddy.uuid, pendingBuddy.uuid);
+    assert.equal(state.statusMessage, "Resuming pending buddy.");
+  });
+});
+
+test("controller can render and reroll a resumed pending buddy", async () => {
+  await withTempEnvironment(async () => {
+    const pendingBuddy = rollFrom("11111111-1111-4111-8111-111111111111");
+    saveSettings({ backup: null, maxBuddy: 50, pendingBuddy });
+    const state = createInitialState();
+    const handler = createKeypressHandler(state, (nextState) => {
+      renderScreen(nextState, { columns: 90, rows: 30 });
+    });
+
+    await handler({ name: "enter" });
+
+    assert.equal(state.screen, "roll");
+    assert.equal(state.roll.phase, "revealed");
+    assert.deepEqual(Object.keys(state.roll.buddy.stats).length, 5);
+
+    await handler({ name: "text", value: "r" });
+
+    assert.equal(state.screen, "roll");
+    assert.equal(state.roll.phase, "revealed");
+    assert.deepEqual(Object.keys(state.roll.buddy.stats).length, 5);
+  });
+});
+
+test("resumed pending buddy is marked saved when already present in collection", async () => {
+  await withTempEnvironment(async () => {
+    const pendingBuddy = rollFrom("11111111-1111-4111-8111-111111111111");
+    saveToCollection(pendingBuddy);
+    saveSettings({ backup: null, maxBuddy: 50, pendingBuddy });
+    const state = createInitialState();
+    const handler = createKeypressHandler(state, () => {});
+
+    await handler({ name: "enter" });
+    await handler({ name: "text", value: "a" });
+
+    assert.equal(state.roll.savedToCollection, true);
+    assert.equal(loadCollection().length, 1);
+    assert.equal(state.statusMessage, "Buddy already saved for this roll.");
+  });
+});
+
+test("applyRollAction reports collection capacity and keeps pending when full", async () => {
+  await withTempEnvironment(async () => {
+    const state = createInitialState();
+    await runRollSequence(state, () => {});
+    saveSettings({ backup: null, maxBuddy: 1, pendingBuddy: getPendingBuddy() });
+    saveToCollection(rollFrom("22222222-2222-4222-8222-222222222222"));
+
+    await applyRollAction(state, () => {});
+
+    assert.equal(state.screen, "roll");
+    assert.match(state.statusMessage, /Collection full/i);
+    assert.equal(getPendingBuddy().uuid, state.roll.buddy.uuid);
   });
 });
 

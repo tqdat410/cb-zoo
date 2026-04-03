@@ -131,6 +131,33 @@ test("home, edit, collection, and roll views render cb-zoo content", () => {
     statusMessage: "Saved."
   }, { columns: 90, rows: 30 });
   assert.match(savedRoll.bodyLines.join("\n"), /\x1b\[32m/);
+
+  const fullRoll = renderRollView({
+    roll: {
+      phase: "revealed",
+      buddy: {
+        uuid: "73e7fce7-9a2a-40b1-b78e-11571f33011a",
+        rarity: "rare",
+        species: "cat",
+        eye: "✦",
+        hat: "crown",
+        shiny: false,
+        stats: { DEBUGGING: 61, PATIENCE: 88, CHAOS: 18, WISDOM: 49, SNARK: 45 },
+        peak: "PATIENCE",
+        dump: "CHAOS",
+        total: 261
+      },
+      actionIndex: 0,
+      previewColor: "\x1b[36m",
+      previewStars: "★★★",
+      savedToCollection: false,
+      collectionFull: true
+    },
+    statusMessage: "Collection full."
+  }, { columns: 90, rows: 30 });
+  assert.match(fullRoll.bodyLines.join("\n"), /Collection full/);
+  assert.match(fullRoll.bodyLines.join("\n"), /Equip - full/);
+  assert.match(fullRoll.footer, /R reroll/);
 });
 
 test("edit view swaps to reset confirmation copy when requested", () => {

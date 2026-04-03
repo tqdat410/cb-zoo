@@ -2,7 +2,7 @@
 
 `cb-zoo` is a zero-dependency Node.js CLI and terminal UI for rolling, collecting, and applying Claude Code buddies.
 
-It is a `Claude Code` companion manager with a retro terminal UI, gacha-style roll flow, local collection tracking, and backup/restore support for Claude UUID state.
+It is a `Claude Code` companion manager with a retro terminal UI, gacha-style roll flow, unified local settings storage, local collection tracking, and backup/restore support for Claude UUID state.
 
 ## Demo
 
@@ -20,7 +20,10 @@ If the embedded video does not render on GitHub, [watch it here](https://res.clo
 - Default interactive terminal UI for rolling and browsing buddies
 - Fast plain CLI flow with `--quick` and `--plain`
 - Current buddy inspection with UUID-derived traits plus stored profile data
+- Unified local settings saved in `~/.cb-zoo/settings.json` for backup data, collection capacity, and pending roll state
 - Local collection saved in `~/.cb-zoo/collection.json`
+- Collection surfaces show current capacity, and saves stop at `maxBuddy` entries (`50` by default)
+- TUI rolls persist unsaved reveals so the "Resume Roll" action restores the pending buddy after backing out or restarting
 - Backup and restore flow for the original Claude UUID
 - Zero runtime npm dependencies
 
@@ -69,14 +72,16 @@ cb-zoo --restore
 - `cb-zoo --set-personality "Calm under pressure."`
   Updates the stored companion personality.
 - `cb-zoo --backup`
-  Creates the UUID backup if it does not already exist.
+  Creates the UUID backup in `~/.cb-zoo/settings.json` if it does not already exist.
 - `cb-zoo --restore`
   Restores the backed-up UUID.
 
 ## Safety Notes
 
 - The tool edits `oauthAccount.accountUuid` for rerolls and can also edit `companion.name` and `companion.personality` for the current stored buddy.
-- The original UUID is backed up to `~/.cb-zoo/backup.json` on first run.
+- The original UUID is backed up inside `~/.cb-zoo/settings.json` on first run. Existing `~/.cb-zoo/backup.json` files migrate automatically on first settings load.
+- `settings.json` also stores `maxBuddy` and the current TUI `pendingBuddy`; `maxBuddy` defaults to `50`.
+- When the collection is full, TUI Add/Equip keeps the pending buddy in place instead of discarding it.
 - Claude Code does not document this file schema as a stable public API, so future releases may change it.
 - Re-authenticating Claude Code can overwrite the rerolled UUID, so keep the backup.
 

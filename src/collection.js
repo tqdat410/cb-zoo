@@ -1,5 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { COLLECTION_FILE, RARITIES, RARITY_ORDER, SPECIES, getCollectionFile, getDataDir } from "./config.js";
+import { getMaxBuddy } from "./settings-manager.js";
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -67,12 +68,28 @@ function sameCollectionEntry(left, right) {
   );
 }
 
+function matchesBuddyRecord(entry, buddy) {
+  return (
+    entry.uuid === buddy.uuid &&
+    entry.species === buddy.species &&
+    entry.rarity === buddy.rarity &&
+    entry.eye === buddy.eye &&
+    entry.hat === buddy.hat &&
+    entry.shiny === buddy.shiny &&
+    entry.total === buddy.total
+  );
+}
+
 export function loadCollection() {
   return readCollectionFile();
 }
 
 export function saveToCollection(buddy) {
   const entries = readCollectionFile();
+  const maxBuddy = getMaxBuddy();
+  if (entries.length >= maxBuddy) {
+    throw new Error(`Collection full (${entries.length}/${maxBuddy}). Delete a buddy first.`);
+  }
   const entry = {
     uuid: buddy.uuid,
     species: buddy.species,
@@ -116,6 +133,10 @@ export function resolveCollectionEntry(entryToFind) {
   return matchedEntry;
 }
 
+export function hasCollectionEntryForBuddy(buddy) {
+  return readCollectionFile().some((entry) => matchesBuddyRecord(entry, buddy));
+}
+
 export function getStats(collection = readCollectionFile()) {
   const uniqueCombos = new Set(collection.map((entry) => `${entry.species}:${entry.rarity}`));
   const shinies = collection.filter((entry) => entry.shiny).length;
@@ -149,7 +170,7 @@ export function formatCollection(collection = readCollectionFile()) {
     "Species    C   U   R   E   L   Shiny",
     ...rows,
     "",
-    `Total Rolls: ${stats.total}`,
+    `Total Rolls: ${stats.total}/${getMaxBuddy()}`,
     `Unique Combos: ${stats.unique}/${SPECIES.length * RARITIES.length}`,
     `Shiny Rolls: ${stats.shinies}`,
     `Legendary Rolls: ${stats.legendaries}`,

@@ -1,4 +1,5 @@
 import { renderSprite } from "../../sprites.js";
+import { getMaxBuddy } from "../../settings-manager.js";
 import { getScreenMetrics } from "../render-layout.js";
 import {
   ANSI,
@@ -61,13 +62,15 @@ function renderDeletePrompt(entry) {
 
 export function renderCollectionView(state, terminal = {}) {
   const entries = state.collectionEntries;
+  const maxBuddy = getMaxBuddy();
+  const capacityLabel = `${entries.length}/${maxBuddy}`;
   if (entries.length === 0) {
     return {
       title: "COLLECTION",
-      subtitle: "Saved buddy collection",
+      subtitle: `${capacityLabel} buddies`,
       bodyLines: ["No buddies saved yet."],
       footer: "Esc back",
-      status: state.statusMessage || "Collection empty."
+      status: state.statusMessage || `${capacityLabel} buddies in collection.`
     };
   }
 
@@ -94,10 +97,10 @@ export function renderCollectionView(state, terminal = {}) {
 
   return {
     title: "COLLECTION",
-    subtitle: "Saved buddy collection",
+    subtitle: `${capacityLabel} buddies`,
     bodyLines: centerUniformBlockLines(["Collection", ...listLines, ...separatorLines, ...detailLines], innerWidth),
     footer: confirmDelete ? "Enter/Y delete  Esc/N cancel" : "Up/Down move  Enter/A apply  D delete  Esc back",
     palette: getRarityAccent(selected.rarity).color,
-    status: state.statusMessage || `${entries.length} buddies in collection.`
+    status: state.statusMessage || `${capacityLabel} buddies in collection.`
   };
 }

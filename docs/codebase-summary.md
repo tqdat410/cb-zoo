@@ -16,8 +16,12 @@ This repository currently contains a single CLI package named `cb-zoo`.
 
 - Buddy generation is deterministic from UUID plus the hardcoded salt.
 - UUID and collection JSON readers strip an optional UTF-8 BOM before parsing.
-- UUID management resolves Claude account state with `.claude.json` as the preferred target, keeps legacy fallbacks for mixed installs, edits only `oauthAccount.accountUuid`, pins restore to the originally backed-up state file, rejects malformed UUIDs or tampered backup target paths, fails closed on invalid config or backup payload shapes, and refuses pre-existing temp paths during writes.
-- Collection tracking stores minimal buddy metadata under `~/.cb-zoo`, validates existing collection state before roll mode mutates local data, and refuses to overwrite corrupt existing collection data.
+- Local cb-zoo settings now live in `~/.cb-zoo/settings.json`; first load migrates legacy `backup.json` into the unified settings file.
+- Settings management normalizes `maxBuddy` to a positive integer with a default of `50`, stores backup metadata, and drops invalid `pendingBuddy` payloads instead of resuming them.
+- UUID management resolves Claude account state with `.claude.json` as the preferred target, keeps legacy fallbacks for mixed installs, edits only `oauthAccount.accountUuid`, pins restore to the originally backed-up state file stored in `settings.json`, rejects malformed UUIDs or tampered backup target paths, fails closed on invalid config or backup payload shapes, and refuses pre-existing temp paths during writes.
+- Collection tracking stores minimal buddy metadata under `~/.cb-zoo`, validates existing collection state before roll mode mutates local data, refuses to overwrite corrupt existing collection data, and enforces `maxBuddy` capacity before saving.
+- The default TUI persists each revealed-but-unsaved roll as `pendingBuddy`, keeps it on Back, resumes it from the home "Resume Roll" action after restart, and clears it only after successful Add or Equip.
+- Collection output surfaces expose current capacity as `current/maxBuddy` in both the TUI collection subtitle/status and the plain CLI summary.
 - `CB_ZOO_DATA_DIR` is validated so cb-zoo state cannot be redirected into protected Claude state directories such as `.claude` or Windows `%APPDATA%\\Claude`.
 - Sprite rendering always returns a 5-line frame so reveal layout and hat placement stay aligned.
 - Terminal output supports both animated and plain-text reveal paths.
@@ -28,11 +32,13 @@ This repository currently contains a single CLI package named `cb-zoo`.
 
 - Deterministic hashing and roll output
 - 5-line sprite rendering contract
-- UUID backup/apply/restore, including BOM-tolerant config parsing
+- Settings load/save plus legacy `backup.json` migration
+- UUID backup/apply/restore, including BOM-tolerant config parsing and pinned restore metadata in `settings.json`
 - Claude account-state resolver ordering across primary and fallback paths
 - Invalid backup rejection before config or collection mutation
-- Collection persistence and summary formatting
+- Collection persistence, capacity enforcement, and summary formatting
 - Corrupt collection rejection without overwriting local data
+- Pending buddy persistence, rollback, and resume behavior in the TUI
 - CLI help rendering
 - CLI smoke coverage for `--help`, `--collection`, `--current`, and plain quick-roll prompt behavior
 - Unknown-flag rejection

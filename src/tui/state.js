@@ -1,5 +1,6 @@
 import { getCurrentCompanion } from "../companion-state.js";
-import { loadCollection } from "../collection.js";
+import { hasCollectionEntryForBuddy, loadCollection } from "../collection.js";
+import { getMaxBuddy, getPendingBuddy } from "../settings-manager.js";
 import { getCurrentUuid } from "../uuid-manager.js";
 import { rollFrom } from "../buddy-engine.js";
 import { renderHomeView } from "./views/home-view.js";
@@ -8,6 +9,7 @@ import { renderCurrentView } from "./views/current-view.js";
 import { renderCollectionView } from "./views/collection-view.js";
 import { renderEditView } from "./views/edit-view.js";
 import { createIdleRollState } from "./roll-config.js";
+import { getRarityAccent } from "./render-helpers.js";
 
 export function createInitialState() {
   return {
@@ -54,6 +56,32 @@ export function syncCollection(state) {
   if (state.collectionEntries.length === 0) {
     state.collectionIndex = 0;
   }
+}
+
+export function loadPendingRollState() {
+  const pendingBuddy = getPendingBuddy();
+  if (!pendingBuddy) {
+    return null;
+  }
+  const rehydratedBuddy = {
+    ...rollFrom(pendingBuddy.uuid),
+    rolledAt: pendingBuddy.rolledAt
+  };
+  const accent = getRarityAccent(rehydratedBuddy.rarity);
+  const savedToCollection = hasCollectionEntryForBuddy(rehydratedBuddy);
+  return {
+    phase: "revealed",
+    buddy: rehydratedBuddy,
+    actionIndex: 0,
+    previewSpecies: rehydratedBuddy.species,
+    previewEye: rehydratedBuddy.eye,
+    previewRarity: rehydratedBuddy.rarity,
+    previewColor: accent.color,
+    previewBurst: accent.burst,
+    previewStars: accent.stars,
+    savedToCollection,
+    collectionFull: loadCollection().length >= getMaxBuddy()
+  };
 }
 
 export function resetCollectionPrompt(state) {

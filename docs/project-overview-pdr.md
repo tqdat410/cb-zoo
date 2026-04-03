@@ -2,26 +2,31 @@
 
 ## Product
 
-`cb-zoo` is a zero-dependency Node.js terminal app that rolls Claude Code buddies from random UUIDs, presents them through a centered cb-zoo TUI or explicit plain CLI flows, stores a local collection in `~/.cb-zoo/collection.json`, and optionally applies the rolled UUID back into Claude Code.
+`cb-zoo` is a zero-dependency Node.js terminal app that rolls Claude Code buddies from random UUIDs, presents them through a centered cb-zoo TUI or explicit plain CLI flows, stores local settings in `~/.cb-zoo/settings.json`, stores the collection in `~/.cb-zoo/collection.json`, and optionally applies the rolled UUID back into Claude Code.
 
 ## Goals
 
 - Match the public buddy-generation algorithm used by `claude-petpet`
 - Stay cross-platform on Windows, macOS, and Linux
 - Keep installation friction low by avoiding external dependencies
-- Protect the user's original Claude UUID with backup and restore commands
+- Protect the user's original Claude UUID with backup and restore commands stored in unified local settings
+- Let users resume an unsaved TUI roll instead of losing it on back-out or restart
 
 ## Functional Requirements
 
 - Roll a deterministic buddy from any UUID
 - Launch a centered default interactive TUI for TTY runs
 - Render a shared rarity palette across reveal, current, and collection surfaces: `common` neutral, `uncommon` green, `rare` blue, `epic` magenta, `legendary` gold
-- Back up the current Claude UUID before first modification
+- Back up the current Claude UUID inside `~/.cb-zoo/settings.json` before first modification
 - Apply a new UUID into the resolved Claude account state file, preferring `~/.claude.json` or `$CLAUDE_CONFIG_DIR/.claude.json`
 - Update the current stored companion `name` and `personality` without changing UUID-derived bones
-- Restore the original UUID from `~/.cb-zoo/backup.json`
-- Save selected rolls to the local collection (`~/.cb-zoo/collection.json`) only when the user chooses `Add` or `Equip`
-- Let the TUI `Collection` view apply the selected buddy UUID without removing the saved entry, or delete the selected buddy after explicit confirmation
+- Restore the original UUID from backup data stored in `~/.cb-zoo/settings.json`
+- Auto-migrate legacy `~/.cb-zoo/backup.json` into `settings.json` on first settings load
+- In the default TUI, save selected rolls to the local collection (`~/.cb-zoo/collection.json`) only when the user chooses Add or Equip
+- Enforce collection capacity from `settings.maxBuddy`, defaulting to `50`
+- Show collection capacity as `current/maxBuddy` in collection views
+- Persist the current revealed TUI roll as `pendingBuddy`, keep it on Back or relaunch, and clear it after successful Add or Equip
+- Let the TUI Collection view apply the selected buddy UUID without removing the saved entry, or delete the selected buddy after explicit confirmation
 - Reject malformed UUID values and invalid Claude config shapes before config writes
 - Reject companion metadata edits when Claude state has no valid stored companion yet or when trimmed edit values are blank
 - Reject invalid backup data before backup, apply, or restore continues
@@ -40,9 +45,9 @@
 - No token or config leakage in logs
 - Restore terminal cursor/state cleanly after TUI exit or failure
 - Show a minimum-size warning instead of the full TUI when the terminal is smaller than `64x24`
-- Atomic JSON writes for config and collection files
+- Atomic JSON writes for config, settings, and collection files
 - BOM-tolerant JSON parsing for persisted state files
-- Fail closed on corrupt backup or collection data
+- Fail closed on corrupt settings, backup, or collection data, while dropping invalid pending roll payloads instead of resuming them
 - Prevent cb-zoo state files from being redirected into protected Claude state directories such as `.claude` or Windows `%APPDATA%\\Claude` through env overrides
 
 ## Risks

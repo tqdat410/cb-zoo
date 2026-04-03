@@ -3,7 +3,7 @@ import { applyUuid, backupUuid, hasBackup, resetCompanionProfile, restoreUuid, u
 import { getHomeMenuItems } from "./views/home-view.js";
 import { applyRollAction, runRollSequence } from "./roll-flow.js";
 import { getRollActionIndex, ROLL_ACTIONS } from "./roll-config.js";
-import { openEdit, resetCollectionPrompt, syncCollection, syncCurrent } from "./state.js";
+import { loadPendingRollState, openEdit, resetCollectionPrompt, syncCollection, syncCurrent } from "./state.js";
 
 function isShortcut(key, value) {
   return key.name === "text" && key.value.toLowerCase() === value;
@@ -27,6 +27,13 @@ async function handleHomeAction(state, writeScreen) {
     return;
   }
   if (action === "roll") {
+    const pendingRoll = loadPendingRollState();
+    if (pendingRoll) {
+      state.screen = "roll";
+      state.roll = pendingRoll;
+      state.statusMessage = "Resuming pending buddy.";
+      return;
+    }
     await runRollSequence(state, writeScreen);
     return;
   }

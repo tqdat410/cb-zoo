@@ -1,7 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { pick, rollFrom, mulberry32, hashString } from "../buddy-engine.js";
-import { deleteCollectionEntry, saveToCollection } from "../collection.js";
+import { deleteCollectionEntry, hasCollectionEntryForBuddy, loadCollection, saveToCollection } from "../collection.js";
 import { EYES, SPECIES } from "../config.js";
+import { clearPendingBuddy, getMaxBuddy, setPendingBuddy } from "../settings-manager.js";
 import { applyUuid, backupUuid, hasBackup } from "../uuid-manager.js";
 import { syncCollection } from "./state.js";
 import { createIdleRollState, ROLL_ACTIONS } from "./roll-config.js";
@@ -22,6 +23,7 @@ export async function runRollSequence(state, writeScreen) {
   const buddy = rollFrom(randomUUID());
   const rng = mulberry32(hashString(`${buddy.uuid}:tui-spin`));
   const accent = getRarityAccent(buddy.rarity);
+  const collectionFull = loadCollection().length >= getMaxBuddy();
 
   for (const delay of [45, 55, 65, 75, 90, 105]) {
     state.roll = {
@@ -53,8 +55,10 @@ export async function runRollSequence(state, writeScreen) {
     previewColor: accent.color,
     previewBurst: accent.burst,
     previewStars: accent.stars,
-    savedToCollection: false
+    savedToCollection: false,
+    collectionFull
   };
+  setPendingBuddy(buddy);
   state.busy = false;
   state.statusMessage = `Rolled ${buddy.rarity} ${buddy.species}.`;
 }
@@ -67,8 +71,20 @@ function ensureRollSaved(state) {
   if (state.roll.savedToCollection || !state.roll.buddy) {
     return null;
   }
+  const maxBuddy = getMaxBuddy();
+  const collection = loadCollection();
+  if (hasCollectionEntryForBuddy(state.roll.buddy)) {
+    state.roll.savedToCollection = true;
+    state.roll.collectionFull = collection.length >= maxBuddy;
+    syncCollection(state);
+    return null;
+  }
+  if (collection.length >= maxBuddy) {
+    throw new Error(`Collection full (${collection.length}/${maxBuddy}). Delete a buddy first.`);
+  }
   const entry = saveToCollection(state.roll.buddy);
   state.roll.savedToCollection = true;
+  state.roll.collectionFull = loadCollection().length >= getMaxBuddy();
   syncCollection(state);
   return entry;
 }
@@ -80,31 +96,67 @@ export async function applyRollAction(state, writeScreen) {
     return;
   }
   if (action === "equip") {
-    const savedEntry = ensureRollSaved(state);
+    let savedEntry = null;
     try {
-      applyUuid(buddy.uuid);
+      savedEntry = ensureRollSaved(state);
+      clearPendingBuddy();
     } catch (error) {
       if (savedEntry) {
         try {
           deleteCollectionEntry(savedEntry);
           state.roll.savedToCollection = false;
+          state.roll.collectionFull = loadCollection().length >= getMaxBuddy();
           syncCollection(state);
         } catch (rollbackError) {
           throw new Error(`${error.message} Rollback failed: ${rollbackError.message}`);
         }
       }
-      throw error;
+      state.statusMessage = error.message;
+      return;
     }
-    state.screen = "home";
-    resetRollState(state);
-    state.statusMessage = savedEntry
-      ? `Collected + equipped ${buddy.species}. Restart Claude Code.`
-      : `Equipped ${buddy.species}. Restart Claude Code.`;
-    return;
+    try {
+      applyUuid(buddy.uuid);
+      state.screen = "home";
+      resetRollState(state);
+      state.statusMessage = savedEntry
+        ? `Collected + equipped ${buddy.species}. Restart Claude Code.`
+        : `Equipped ${buddy.species}. Restart Claude Code.`;
+      return;
+    } catch (error) {
+      if (savedEntry) {
+        try {
+          deleteCollectionEntry(savedEntry);
+          setPendingBuddy(buddy);
+          state.roll.savedToCollection = false;
+          state.roll.collectionFull = loadCollection().length >= getMaxBuddy();
+          syncCollection(state);
+        } catch (rollbackError) {
+          throw new Error(`${error.message} Rollback failed: ${rollbackError.message}`);
+        }
+      }
+      state.statusMessage = error.message;
+      return;
+    }
   }
   if (action === "add") {
-    const savedEntry = ensureRollSaved(state);
-    state.statusMessage = savedEntry ? "Buddy saved to collection." : "Buddy already saved for this roll.";
+    let savedEntry = null;
+    try {
+      savedEntry = ensureRollSaved(state);
+      clearPendingBuddy();
+      state.statusMessage = savedEntry ? "Buddy saved to collection." : "Buddy already saved for this roll.";
+    } catch (error) {
+      if (savedEntry) {
+        try {
+          deleteCollectionEntry(savedEntry);
+          state.roll.savedToCollection = false;
+          state.roll.collectionFull = loadCollection().length >= getMaxBuddy();
+          syncCollection(state);
+        } catch (rollbackError) {
+          throw new Error(`${error.message} Rollback failed: ${rollbackError.message}`);
+        }
+      }
+      state.statusMessage = error.message;
+    }
     return;
   }
   if (action === "reroll") {

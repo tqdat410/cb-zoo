@@ -80,10 +80,11 @@ function withTempEnvironment(callback, options = {}) {
 }
 
 test("uuid backup, apply, and restore preserve the rest of the Claude config", () => {
-  withTempEnvironment(({ configFile }) => {
+  withTempEnvironment(({ configFile, dataDir }) => {
     assert.equal(getCurrentUuid(), "00000000-0000-4000-8000-000000000000");
     const backup = backupUuid();
     assert.equal(backup.created, true);
+    assert.equal(JSON.parse(readFileSync(join(dataDir, "settings.json"), "utf8")).backup.uuid, "00000000-0000-4000-8000-000000000000");
 
     applyUuid("11111111-1111-4111-8111-111111111111");
     let updated = JSON.parse(readFileSync(configFile, "utf8"));
@@ -345,12 +346,13 @@ test("collection persistence and stats track unique combos and shinies", () => {
     assert.equal(stats.shinies, 1);
     assert.equal(stats.rarest.species, "robot");
     assert.match(formatCollection(collection), /robot/);
+    assert.match(formatCollection(collection), /Total Rolls: 3\/50/);
   });
 });
 
 test("backup rejects an existing file without a valid UUID", () => {
   withTempEnvironment(({ dataDir }) => {
-    writeFileSync(join(dataDir, "backup.json"), JSON.stringify({}, null, 2), "utf8");
+    writeFileSync(join(dataDir, "settings.json"), JSON.stringify({ backup: {} }, null, 2), "utf8");
 
     const result = spawnSync(process.execPath, ["./src/cli.js", "--backup"], {
       cwd: process.cwd(),
@@ -365,18 +367,18 @@ test("backup rejects an existing file without a valid UUID", () => {
 
 test("backup rejects an existing temporary file path", () => {
   withTempEnvironment(({ dataDir }) => {
-    const tempFile = join(dataDir, "backup.json.tmp");
+    const tempFile = join(dataDir, "settings.json.tmp");
     writeFileSync(tempFile, "placeholder", "utf8");
 
     assert.throws(() => backupUuid(), /existing temporary file/i);
-    assert.equal(existsSync(join(dataDir, "backup.json")), false);
+    assert.equal(existsSync(join(dataDir, "settings.json")), false);
     assert.equal(readFileSync(tempFile, "utf8"), "placeholder");
   });
 });
 
 test("restore rejects a malformed UUID in backup without touching Claude config", () => {
   withTempEnvironment(({ configFile, dataDir }) => {
-    writeFileSync(join(dataDir, "backup.json"), JSON.stringify({ uuid: "not-a-uuid" }, null, 2), "utf8");
+    writeFileSync(join(dataDir, "settings.json"), JSON.stringify({ backup: { uuid: "not-a-uuid" } }, null, 2), "utf8");
 
     const result = spawnSync(process.execPath, ["./src/cli.js", "--restore"], {
       cwd: process.cwd(),
@@ -394,8 +396,8 @@ test("restore rejects a malformed current config UUID without touching Claude co
   withTempEnvironment(({ configFile, dataDir }) => {
     writeFileSync(configFile, JSON.stringify({ oauthAccount: { accountUuid: "not-a-uuid" } }, null, 2), "utf8");
     writeFileSync(
-      join(dataDir, "backup.json"),
-      JSON.stringify({ uuid: "44444444-4444-4444-8444-444444444444" }, null, 2),
+      join(dataDir, "settings.json"),
+      JSON.stringify({ backup: { uuid: "44444444-4444-4444-8444-444444444444" } }, null, 2),
       "utf8"
     );
 
@@ -426,7 +428,7 @@ test("corrupt collection blocks quick roll before overwriting local data", () =>
     assert.equal(result.status, 1);
     assert.match(result.stderr, /collection exists but is invalid/i);
     assert.equal(readFileSync(collectionFile, "utf8"), "{not-json");
-    assert.equal(existsSync(join(dataDir, "backup.json")), false);
+    assert.equal(existsSync(join(dataDir, "settings.json")), false);
     assert.equal(result.stdout.includes("Backed up current UUID"), false);
     assert.equal(result.stdout.includes("[A]pply"), false);
   });
@@ -470,9 +472,40 @@ test("quick roll still works when Claude uses live companion state", () => {
     });
 
     assert.equal(result.status, 0);
-    assert.equal(existsSync(join(dataDir, "backup.json")), true);
+    assert.equal(existsSync(join(dataDir, "settings.json")), true);
     assert.equal(existsSync(join(dataDir, "collection.json")), true);
     assert.equal(result.stdout.includes("Backed up current UUID"), true);
+  });
+});
+
+test("quick roll keeps reroll and quit available when collection is full", () => {
+  withTempEnvironment(({ dataDir }) => {
+    writeFileSync(
+      join(dataDir, "settings.json"),
+      JSON.stringify({ backup: null, maxBuddy: 1, pendingBuddy: null }, null, 2),
+      "utf8"
+    );
+    saveToCollection({
+      uuid: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      species: "robot",
+      rarity: "rare",
+      eye: "✦",
+      hat: "crown",
+      shiny: false,
+      total: 260
+    });
+
+    const result = spawnSync(process.execPath, ["./src/cli.js", "--quick"], {
+      cwd: process.cwd(),
+      encoding: "utf8",
+      input: "q\n",
+      env: { ...process.env }
+    });
+
+    assert.equal(result.status, 0);
+    assert.match(result.stdout, /Collection full \(1\/1\)\. Delete a buddy first\./);
+    assert.match(result.stdout, /\[R\]eroll  \[Q\]uit:/);
+    assert.equal(loadCollection().length, 1);
   });
 });
 
@@ -557,7 +590,7 @@ test("backup rejects data directories inside Claude config directory", () => {
 
     assert.equal(result.status, 1);
     assert.match(result.stderr, /must stay outside Claude config directories/i);
-    assert.equal(existsSync(join(claudeDir, "backup.json")), false);
+    assert.equal(existsSync(join(claudeDir, "settings.json")), false);
   });
 });
 
@@ -575,7 +608,7 @@ test("backup rejects data directories inside Windows Claude appdata directory", 
 
       assert.equal(result.status, 1);
       assert.match(result.stderr, /must stay outside Claude config directories/i);
-      assert.equal(existsSync(join(appDataDir, "Claude", "cb-zoo-data", "backup.json")), false);
+      assert.equal(existsSync(join(appDataDir, "Claude", "cb-zoo-data", "settings.json")), false);
     },
     { configLayout: "appData" }
   );
@@ -600,7 +633,7 @@ test("restore stays pinned to the backed-up Claude state file", () => {
     assert.equal(result.status, 1);
     assert.match(result.stderr, /account state not found/i);
     assert.equal(JSON.parse(readFileSync(join(claudeDir, ".config.json"), "utf8")).oauthAccount.accountUuid, "99999999-9999-4999-8999-999999999999");
-    assert.equal(JSON.parse(readFileSync(join(dataDir, "backup.json"), "utf8")).stateFile, configFile);
+    assert.equal(JSON.parse(readFileSync(join(dataDir, "settings.json"), "utf8")).backup.stateFile, configFile);
   });
 });
 
@@ -613,8 +646,8 @@ test("restore rejects a tampered backup stateFile outside allowed Claude paths",
       "utf8"
     );
     writeFileSync(
-      join(dataDir, "backup.json"),
-      JSON.stringify({ uuid: "44444444-4444-4444-8444-444444444444", stateFile: unrelatedFile }, null, 2),
+      join(dataDir, "settings.json"),
+      JSON.stringify({ backup: { uuid: "44444444-4444-4444-8444-444444444444", stateFile: unrelatedFile } }, null, 2),
       "utf8"
     );
 
@@ -682,9 +715,9 @@ test("FORCE_COLOR=0 disables ANSI support", () => {
   assert.equal(result.stdout.trim(), "false");
 });
 
-test("corrupt backup blocks quick apply before touching Claude config", () => {
+test("corrupt settings backup blocks quick apply before touching Claude config", () => {
   withTempEnvironment(({ configFile, dataDir }) => {
-    writeFileSync(join(dataDir, "backup.json"), "{not-json", "utf8");
+    writeFileSync(join(dataDir, "settings.json"), "{not-json", "utf8");
     const result = spawnSync(process.execPath, ["./src/cli.js", "--quick"], {
       cwd: process.cwd(),
       encoding: "utf8",

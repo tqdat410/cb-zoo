@@ -26,14 +26,14 @@ function leaveAlternateScreen() {
 export async function launchTuiApp() {
   const state = createInitialState();
   const dispatch = createKeypressHandler(state, writeScreen);
+  let stopReading = () => {};
 
   enterAlternateScreen();
-  writeScreen(state);
-  const stopReading = createKeypressReader((key) => {
-    void dispatch(key);
-  });
-
   try {
+    writeScreen(state);
+    stopReading = createKeypressReader((key) => {
+      void dispatch(key);
+    });
     await new Promise((resolve) => {
       const interval = setInterval(() => {
         if (state.shouldExit) {

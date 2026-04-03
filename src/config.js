@@ -146,8 +146,8 @@ export function getDataDir() {
   return dataDir;
 }
 
-export function getBackupFile() {
-  return join(getDataDir(), "backup.json");
+export function getSettingsFile() {
+  return join(getDataDir(), "settings.json");
 }
 
 export function getCollectionFile() {
@@ -158,5 +158,5 @@ export const CLAUDE_DIR = getClaudeDir();
 export const CONFIG_FILE = getConfigFile();
 export const CLAUDE_STATE_FILE = resolveClaudeStateFile();
 export const CBZOO_DIR = getDataDir();
-export const BACKUP_FILE = getBackupFile();
+export const SETTINGS_FILE = getSettingsFile();
 export const COLLECTION_FILE = getCollectionFile();
