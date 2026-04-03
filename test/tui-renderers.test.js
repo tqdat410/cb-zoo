@@ -10,7 +10,7 @@ import { renderBreedConfirm, renderBreedSelectA, renderBreedSelectB } from "../s
 import { renderEggView, renderHatchView } from "../src/tui/views/egg-view.js";
 import { showBuddyCard } from "../src/gacha-animation.js";
 import { formatCompanionSummary } from "../src/companion-state.js";
-import { ANSI, clipLines, getRarityAccent, stripAnsi, wrapText } from "../src/tui/render-helpers.js";
+import { ANSI, centerVisible, clipLines, getRarityAccent, stripAnsi, wrapText } from "../src/tui/render-helpers.js";
 import { getRollActionIndex } from "../src/tui/roll-config.js";
 import { clearBreedEgg, saveSettings, setBreedEgg } from "../src/settings-manager.js";
 import { withTempEnvironment } from "../test-support/with-temp-environment.js";
@@ -48,8 +48,14 @@ test("rarity accents match the requested palette matrix", () => {
 test("home, edit, collection, and roll views render cb-zoo content", async () => {
   await withTempEnvironment(async () => {
     const home = renderHomeView({ menuIndex: 0, statusMessage: "Ready." }, { columns: 90, rows: 30 });
-    assert.match(home.bodyLines.join("\n"), /Roll, collect, and apply Claude buddies\./);
-    assert.match(home.topRight, /Rerolls 100\/100  Gen FULL/);
+    const selectedHomeLine = home.bodyLines.find((line) => stripAnsi(line).includes("Roll Buddy")) || "";
+    assert.match(home.bodyLines.join("\n"), /Roll, breed, and collect Claude buddies\./);
+    assert.match(home.bodyLines.join("\n"), /Equip, hatch, and manage them here\./);
+    assert.match(home.topRight, /0\/50 \| 100\/100 \| --:--/);
+    assert.equal(
+      stripAnsi(selectedHomeLine),
+      stripAnsi(centerVisible(`${ANSI.gold}${ANSI.bold}▶ Roll Buddy${ANSI.reset}`, 70))
+    );
 
     const edit = renderEditView({
       edit: { activeField: "name", name: "Nova", personality: "Calm under pressure.", error: "", confirmReset: false },
@@ -179,7 +185,7 @@ test("home and roll views show charge countdown when rerolls are empty", async (
     });
 
     const home = renderHomeView({ menuIndex: 0, statusMessage: "Ready." }, { columns: 90, rows: 30 });
-    assert.match(home.topRight, /Rerolls 0\/5  Gen 05:00/);
+    assert.match(home.topRight, /0\/50 \| 0\/5 \| 05:00/);
 
     const roll = renderRollView({
       roll: {
@@ -208,7 +214,18 @@ test("home and roll views show charge countdown when rerolls are empty", async (
     assert.match(roll.bodyLines.join("\n"), /No rerolls left\. Next \+1 in 05:00\./);
     assert.match(roll.bodyLines.join("\n"), /Reroll - empty/);
     assert.doesNotMatch(roll.footer, /R reroll/);
-    assert.match(roll.topRight, /Rerolls 0\/5  Gen 05:00/);
+    assert.match(roll.topRight, /0\/50 \| 0\/5 \| 05:00/);
+  });
+});
+
+test("home menu centers each option row independently", async () => {
+  await withTempEnvironment(async () => {
+    const home = renderHomeView({ menuIndex: 3, statusMessage: "Ready." }, { columns: 90, rows: 30 });
+    const selectedLine = home.bodyLines.find((line) => stripAnsi(line).includes("Breed Buddy")) || "";
+    const plainLine = home.bodyLines.find((line) => stripAnsi(line).includes("Collection")) || "";
+
+    assert.equal(stripAnsi(selectedLine), stripAnsi(centerVisible(`${ANSI.gold}${ANSI.bold}▶ Breed Buddy${ANSI.reset}`, 70)));
+    assert.equal(stripAnsi(plainLine), centerVisible("Collection", 70));
   });
 });
 

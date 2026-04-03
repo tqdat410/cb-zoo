@@ -14,7 +14,8 @@
 - Added persisted `rollCharges` state with lazy refill math so plain CLI and TUI consume the same shared roll budget without background timers.
 - New-roll and reroll paths now stop cleanly at `0` charges, while `Resume Roll` still opens an already revealed pending buddy without spending another charge.
 - Plain CLI now refunds a just-spent charge if collection persistence fails before the reveal prompt, while the TUI only decrements charges when it can atomically persist `pendingBuddy`, keeping bad local state fail-closed.
-- The shared shell header now shows current reroll inventory plus the next-refill countdown in the top-right corner, updates live once per second, and the reveal screen still marks reroll unavailable until at least one charge comes back.
+- The shared shell header still updates live once per second, while HOME now uses that space for a compact `capacity | rerolls | timer` strip and centers the option rows for a cleaner menu layout.
+- The compact top strip is now consistent across the whole TUI instead of changing format between HOME and the other screens.
 - Added a TUI-only Breed Buddy flow that selects two saved collection entries through a collection-style picker, pauses on a confirm screen after parent B, and then starts incubation before saving the hatched buddy back into the collection.
 - Breed select-b now shows the chosen parent in the top subtitle with a `← Back` affordance, keeps the main body to list + highlighted detail only, and the confirm step now shows compact `parent A × parent B` cards with rarity-matched subtitle accents instead of an offspring preview.
 - Breed eggs now persist in `~/.cb-zoo/settings.json` as `breedEgg`, survive app restarts, and switch the home action between `Breed Buddy`, `View Egg`, and `Hatch Egg`.

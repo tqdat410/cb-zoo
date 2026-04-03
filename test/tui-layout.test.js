@@ -5,7 +5,9 @@ import { ANSI, stripAnsi } from "../src/tui/render-helpers.js";
 import { renderCollectionView } from "../src/tui/views/collection-view.js";
 import { renderCurrentView } from "../src/tui/views/current-view.js";
 import { renderEditView } from "../src/tui/views/edit-view.js";
+import { renderHomeView } from "../src/tui/views/home-view.js";
 import { renderRollView } from "../src/tui/views/roll-view.js";
+import { withTempEnvironment } from "../test-support/with-temp-environment.js";
 
 function assertIncludes(value, fragment) {
   assert.equal(value.includes(fragment), true);
@@ -65,7 +67,7 @@ test("renderHandheldScreen places top-right metadata in the shell header", () =>
   const screen = renderHandheldScreen(
     {
       title: "HOME",
-      topRight: "Rerolls 3/5  Gen 04:59",
+      topRight: "50/50 | 3/5 | 04:59",
       bodyLines: ["One line"]
     },
     { columns: 72, rows: 24 }
@@ -73,7 +75,20 @@ test("renderHandheldScreen places top-right metadata in the shell header", () =>
 
   const topLine = getVisibleLineContaining(screen, "CB-ZOO // BUDDY CONSOLE");
   assert.match(topLine, /CB-ZOO \/\/ BUDDY CONSOLE/);
-  assert.match(topLine, /Rerolls 3\/5  Gen 04:59/);
+  assert.match(topLine, /50\/50 \| 3\/5 \| 04:59/);
+});
+
+test("home menu stays centered inside the shell at minimum width", async () => {
+  await withTempEnvironment(async () => {
+    const terminal = { columns: 64, rows: 24 };
+    const homeScreen = renderHandheldScreen(
+      renderHomeView({ menuIndex: 0, statusMessage: "Ready." }, terminal),
+      terminal
+    );
+    const rollLine = getVisibleLineContaining(homeScreen, "Roll Buddy");
+
+    assert.match(rollLine, /│\s+▶ Roll Buddy\s+│/);
+  });
 });
 
 test("renderHandheldScreen shows a minimum-size warning on tiny terminals", () => {

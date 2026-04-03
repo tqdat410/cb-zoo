@@ -13,16 +13,18 @@ import { renderBreedConfirm, renderBreedSelectA, renderBreedSelectB } from "./vi
 import { renderEggView, renderHatchView } from "./views/egg-view.js";
 import { createIdleRollState } from "./roll-config.js";
 import { ANSI, getRarityAccent } from "./render-helpers.js";
-import { formatRollChargeSummary, getRollChargeSnapshot } from "../roll-charge-manager.js";
+import { formatRollCountdown, getRollChargeSnapshot } from "../roll-charge-manager.js";
 
 function attachTopRightMeta(view) {
   if (view.topRight) {
     return view;
   }
   const snapshot = getRollChargeSnapshot();
+  const collectionCount = loadCollection().length;
+  const countdown = snapshot.isFull ? "--:--" : formatRollCountdown(snapshot.msUntilNext);
   return {
     ...view,
-    topRight: `${ANSI.dim}${formatRollChargeSummary(snapshot)}${ANSI.reset}`
+    topRight: `${ANSI.dim}${collectionCount}/${getMaxBuddy()} | ${snapshot.available}/${snapshot.maxCharges} | ${countdown}${ANSI.reset}`
   };
 }
 

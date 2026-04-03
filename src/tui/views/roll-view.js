@@ -1,7 +1,9 @@
 import { STARS } from "../../config.js";
 import { showBuddyCard } from "../../gacha-animation.js";
-import { formatRollChargeSummary, formatRollCountdown, getRollChargeSnapshot } from "../../roll-charge-manager.js";
+import { formatRollCountdown, getRollChargeSnapshot } from "../../roll-charge-manager.js";
 import { renderSprite } from "../../sprites.js";
+import { loadCollection } from "../../collection.js";
+import { getMaxBuddy } from "../../settings-manager.js";
 import { getScreenMetrics } from "../render-layout.js";
 import { ANSI, centerBlockLines, centerUniformBlockLines, centerVisible } from "../render-helpers.js";
 import { ROLL_ACTIONS } from "../roll-config.js";
@@ -42,6 +44,8 @@ export function renderRollView(state, terminal = {}) {
   const centerLine = (line) => centerVisible(line, innerWidth);
   const topRightSnapshot = getRollChargeSnapshot();
   const chargeSnapshot = roll.phase === "revealed" ? topRightSnapshot : null;
+  const collectionCount = loadCollection().length;
+  const countdown = topRightSnapshot.isFull ? "--:--" : formatRollCountdown(topRightSnapshot.msUntilNext);
 
   if (roll.phase === "spinning") {
     bodyLines.push(centerLine(`${ANSI.dim}${ANSI.gray}Reading Claude state...${ANSI.reset}`));
@@ -91,7 +95,7 @@ export function renderRollView(state, terminal = {}) {
     bodyLines,
     footer: roll.phase === "revealed" ? revealFooter : "Please wait...",
     palette: roll.previewColor ?? ANSI.cyan,
-    topRight: `${ANSI.dim}${formatRollChargeSummary(topRightSnapshot)}${ANSI.reset}`,
+    topRight: `${ANSI.dim}${collectionCount}/${getMaxBuddy()} | ${topRightSnapshot.available}/${topRightSnapshot.maxCharges} | ${countdown}${ANSI.reset}`,
     status: state.statusMessage || "Reveal in progress."
   };
 }

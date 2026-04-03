@@ -7,6 +7,8 @@
 - Gated both plain/quick CLI rolls and TUI new-roll / reroll paths behind the shared charge counter, while keeping `Resume Roll` free when a pending reveal already exists
 - Refunded plain-CLI charges when collection persistence fails before the reveal prompt, while keeping the TUI charge write fail-closed behind the atomic `pendingBuddy` settings save
 - Moved the roll charge summary into the shell top-right corner, and added a one-second TUI redraw tick so the shared refill countdown keeps running live like egg hatch timers
+- Reworked the HOME top strip into a compact `collection | rerolls | timer` readout and centered each home option row instead of left-aligning the menu
+- Standardized that same compact top strip across the rest of the TUI screens so shell metadata no longer changes format outside HOME
 - Made the reveal screen disable the reroll action when no charge is available yet
 - Added a TUI-only `Breed Buddy` flow with collection-style parent selection, a confirm screen after the second pick, and hatch-save steps
 - Moved the locked-parent summary out of the breed main body and into the top bar with a visible `← Back` affordance so the picker no longer overflows on dense content

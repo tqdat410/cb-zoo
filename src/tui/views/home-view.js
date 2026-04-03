@@ -1,7 +1,8 @@
 import { getScreenMetrics } from "../render-layout.js";
-import { ANSI, centerBlockLines, createBoxLines } from "../render-helpers.js";
-import { formatRollChargeSummary, getRollChargeSnapshot } from "../../roll-charge-manager.js";
-import { getBreedEgg, getPendingBuddy, isEggReady } from "../../settings-manager.js";
+import { ANSI, centerBlockLines, centerVisible, createBoxLines } from "../render-helpers.js";
+import { formatRollCountdown, getRollChargeSnapshot } from "../../roll-charge-manager.js";
+import { getBreedEgg, getMaxBuddy, getPendingBuddy, isEggReady } from "../../settings-manager.js";
+import { loadCollection } from "../../collection.js";
 
 const BASE_MENU_ITEMS = [
   { id: "roll", label: "Roll Buddy" },
@@ -38,10 +39,13 @@ export function renderHomeView(state, terminal = {}) {
   const breedEgg = getBreedEgg();
   const eggReady = isEggReady();
   const chargeSnapshot = getRollChargeSnapshot();
+  const collectionCount = loadCollection().length;
+  const maxBuddy = getMaxBuddy();
+  const countdown = chargeSnapshot.isFull ? "--:--" : formatRollCountdown(chargeSnapshot.msUntilNext);
   const menuItems = getHomeMenuItems();
   const heroLines = centerBlockLines(
     createBoxLines(
-      ["Roll, collect, and apply Claude buddies.", "Keyboard-first, no filler."],
+      ["Roll, breed, and collect Claude buddies.", "Equip, hatch, and manage them here."],
       Math.min(40, Math.max(24, innerWidth - 10))
     ),
     innerWidth
@@ -57,9 +61,12 @@ export function renderHomeView(state, terminal = {}) {
   for (const [index, item] of menuItems.entries()) {
     const selected = index === state.menuIndex;
     bodyLines.push(
-      selected
-        ? `${ANSI.gold}${ANSI.bold}▶ ${item.label}${ANSI.reset}`
-        : `  ${item.label}`
+      centerVisible(
+        selected
+          ? `${ANSI.gold}${ANSI.bold}▶ ${item.label}${ANSI.reset}`
+          : item.label,
+        innerWidth
+      )
     );
   }
   return {
@@ -73,7 +80,7 @@ export function renderHomeView(state, terminal = {}) {
           : "Claude buddy control deck",
     bodyLines,
     footer: "Up/Down move  Enter select  Q quit",
-    topRight: `${ANSI.dim}${formatRollChargeSummary(chargeSnapshot)}${ANSI.reset}`,
+    topRight: `${ANSI.dim}${collectionCount}/${maxBuddy} | ${chargeSnapshot.available}/${chargeSnapshot.maxCharges} | ${countdown}${ANSI.reset}`,
     status: state.statusMessage || "Ready to roll."
   };
 }
