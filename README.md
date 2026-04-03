@@ -31,6 +31,31 @@ If the embedded video does not render on GitHub, [watch it here](https://res.clo
 - Backup and restore flow for the original Claude UUID
 - Zero runtime npm dependencies
 
+## Breeding Tree
+
+Breed results are symmetric: `duck × goose` gives the same offspring as `goose × duck`. Breeding the same species with itself returns that same species.
+
+| A × B | duck | goose | blob | cat | dragon | octopus | owl | penguin | turtle | snail | ghost | axolotl | capybara | cactus | robot | rabbit | mushroom | chonk |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| duck | duck | goose | duck | cat | dragon | axolotl | owl | penguin | turtle | snail | snail | duck | duck | owl | duck | goose | duck | duck |
+| goose | goose | goose | blob | goose | dragon | octopus | owl | penguin | goose | snail | ghost | axolotl | capybara | cactus | goose | rabbit | mushroom | chonk |
+| blob | duck | blob | blob | blob | dragon | blob | owl | penguin | turtle | snail | dragon | penguin | goose | dragon | blob | blob | blob | blob |
+| cat | cat | goose | blob | cat | dragon | octopus | owl | cat | turtle | cat | ghost | cat | cat | cactus | cat | cat | cat | cat |
+| dragon | dragon | dragon | dragon | dragon | dragon | dragon | dragon | penguin | turtle | snail | ghost | dragon | capybara | cactus | robot | rabbit | mushroom | chonk |
+| octopus | axolotl | octopus | blob | octopus | dragon | octopus | owl | penguin | octopus | snail | ghost | axolotl | octopus | cactus | octopus | octopus | mushroom | octopus |
+| owl | owl | owl | owl | owl | dragon | owl | owl | penguin | turtle | owl | ghost | axolotl | capybara | cactus | robot | owl | mushroom | chonk |
+| penguin | penguin | penguin | penguin | cat | penguin | penguin | penguin | penguin | turtle | snail | ghost | axolotl | capybara | duck | robot | rabbit | penguin | chonk |
+| turtle | turtle | goose | turtle | turtle | turtle | octopus | turtle | turtle | turtle | snail | ghost | axolotl | capybara | cactus | robot | rabbit | turtle | turtle |
+| snail | snail | snail | snail | cat | snail | snail | owl | snail | snail | snail | ghost | axolotl | capybara | cactus | robot | goose | mushroom | blob |
+| ghost | snail | ghost | dragon | ghost | ghost | ghost | ghost | ghost | ghost | ghost | ghost | axolotl | capybara | cactus | robot | rabbit | mushroom | blob |
+| axolotl | duck | axolotl | penguin | cat | dragon | axolotl | axolotl | axolotl | axolotl | axolotl | axolotl | axolotl | capybara | duck | robot | rabbit | mushroom | goose |
+| capybara | duck | capybara | goose | cat | capybara | octopus | capybara | capybara | capybara | capybara | capybara | capybara | capybara | goose | robot | rabbit | duck | chonk |
+| cactus | owl | cactus | dragon | cactus | cactus | cactus | cactus | duck | cactus | cactus | cactus | duck | goose | cactus | robot | rabbit | mushroom | chonk |
+| robot | duck | goose | blob | cat | robot | octopus | robot | robot | robot | robot | robot | robot | robot | robot | robot | rabbit | octopus | chonk |
+| rabbit | goose | rabbit | blob | cat | rabbit | octopus | owl | rabbit | rabbit | goose | rabbit | rabbit | rabbit | rabbit | rabbit | rabbit | mushroom | chonk |
+| mushroom | duck | mushroom | blob | cat | mushroom | mushroom | mushroom | penguin | turtle | mushroom | mushroom | mushroom | duck | mushroom | octopus | mushroom | mushroom | chonk |
+| chonk | duck | chonk | blob | cat | chonk | octopus | chonk | chonk | turtle | blob | blob | goose | chonk | chonk | chonk | chonk | chonk | chonk |
+
 ## Install
 
 ```bash
