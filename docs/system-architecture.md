@@ -24,7 +24,7 @@
   Reads the current stored companion, merges it with UUID-regenerated buddy bones for `--current`, and formats the current companion summary card.
 
 - `src/settings-manager.js`
-  Owns `~/.cb-zoo/settings.json`, migrates legacy `backup.json`, validates and normalizes backup data plus `maxBuddy`, `rollConfig`, `rollCharges`, `pendingBuddy`, and `breedEgg` including optional `hatchedUuid`, and persists atomic settings writes.
+  Owns `~/.cb-zoo/settings.json`, migrates legacy `backup.json`, validates and normalizes backup data plus `maxBuddy`, `rollConfig`, `rollCharges`, `pendingBuddy`, `breedConfig`, and `breedSlots`, migrates legacy `breedEgg` into slot `0`, preserves slot-`0` helper compatibility, and persists atomic settings writes.
 
 - `src/roll-charge-manager.js`
   Normalizes lazy charge refill math, formats next-refill countdowns, exposes shared charge snapshots, and consumes one charge for each brand-new roll.
@@ -77,20 +77,21 @@
 8. If the user chooses Back from the TUI roll screen, cb-zoo returns home without mutating collection or UUID state and keeps `pendingBuddy` so the home action becomes "Resume Roll".
 9. If the user chooses Equip, UUID manager updates the resolved Claude account state file after the collection write succeeds. If pending-clear or UUID-apply fails, the collection save is rolled back and the pending buddy is restored.
 10. If the user opens the TUI Collection view, they can inspect saved buddies, see current count/capacity, apply the selected UUID directly without removing the saved entry, or delete the selected entry after confirmation. Collection apply creates the UUID backup first when needed.
-11. Home-menu rendering checks settings state so `roll` becomes `Resume Roll` when `pendingBuddy` exists, while the breed action becomes `View Egg` or `Hatch Egg` when `breedEgg` exists. The shell top strip now stays consistent across screens with compact `collection/max | rerolls/max | timer` metadata, and HOME centers each option row instead of left-aligning the menu.
-12. If the user opens Breed from the TUI and a persisted egg already exists, breed flow resumes that egg immediately. Without an egg, breeding only requires at least two saved collection entries, so pending rolls and a full collection do not block parent selection.
-13. Breed parent selection reads from the saved collection in reverse order, uses a collection-style list-plus-detail picker, shows the chosen `parent A` in the top subtitle with a visible `← Back` affordance instead of rendering a second body box, and colors the parent summary with that buddy's rarity accent.
-14. After the second parent is chosen, breed flow rejects duplicate UUID pairs and opens a dedicated confirm screen whose top subtitle shows both parents with rarity-colored summaries while the body renders compact `parent A × parent B` cards before any egg is started.
-15. Incubation target traits derive species from `src/breed-table.js`, inherit eye/hat from parents, use floor-averaged parent rarity with a capped one-tier upgrade chance, force `hat: "none"` on `common`, and keep a 1% shiny chance.
-16. Confirming the pairing derives target offspring traits, then writes `settings.breedEgg` with parent UUIDs, target traits, `createdAt`, and `hatchAt`, where `hatchAt` comes from the rarity-based egg timer map in `src/config.js`.
-17. The TUI runtime redraws once per second so both egg timers and shared reroll refill countdowns keep ticking live, and breed flow still keeps its hatch-check timer while leaving the screen with the `escape` key returns home without clearing the egg from settings.
-18. Once the egg is ready, breed flow hunts a real UUID whose deterministic roll output matches the stored target traits, persists it as `breedEgg.hatchedUuid`, and stages a hatched buddy with `bredFrom: [parentAUuid, parentBUuid]` so later resumes reopen the same offspring.
-19. The hatch screen offers Add, Equip, and Delete. Add appends the buddy to the collection, Equip appends and applies the UUID, and Delete discards the hatch. Add and Equip remain blocked while the collection is already at `maxBuddy`.
-20. The ready-hatch reveal reuses the shared ANSI buddy-card renderer so rarity accent, sprite, text, and stat bars stay visually consistent with roll and current-buddy screens.
-21. If Add or Equip fails, the egg stays persisted so the hatch can be retried later. Equip failures also roll back the collection save and restore `breedEgg` before returning control to the hatch screen.
-22. If the user relaunches the TUI or re-enters roll while `pendingBuddy` exists, controller/state rebuild the revealed roll state and resume that buddy without spending another charge.
-23. If the user runs `--current` or opens the current-buddy TUI view, companion-state reads stored soul data, regenerates UUID-derived bones, and renders the merged summary.
-24. If the user edits the current buddy name or personality, UUID manager mutates only those stored companion metadata fields and leaves UUID-derived bones unchanged.
+11. Home-menu rendering checks settings state so `roll` becomes `Resume Roll` when `pendingBuddy` exists, but the breed action stays a stable `Breed Buddy` label. HOME instead surfaces breed progress through a summary box plus subtitle/status text that reflect ready or incubating slots. The shell top strip stays consistent across screens with compact `collection/max | rerolls/max | timer` metadata, and HOME centers each option row instead of left-aligning the menu.
+12. If the user opens Breed from the TUI, breed flow loads persisted `breedSlots` and opens a slot picker whenever at least one slot is occupied or at least two saved collection entries exist, so pending rolls and a full collection still do not block breeding access.
+13. The slot picker defaults to the first ready slot, otherwise the first occupied slot, otherwise slot 1. Enter on an empty slot starts parent selection for that slot; Enter on an occupied slot resumes incubation or hatching there.
+14. Breed parent selection reads from the saved collection in reverse order, uses a collection-style list-plus-detail picker, shows the chosen `parent A` in the top subtitle with a visible `← Back` affordance instead of rendering a second body box, and colors the parent summary with that buddy's rarity accent.
+15. After the second parent is chosen, breed flow rejects duplicate UUID pairs and opens a dedicated confirm screen whose top subtitle shows both parents with rarity-colored summaries while the body renders compact `parent A × parent B` cards before any egg is started.
+16. Incubation target traits derive species from `src/breed-table.js`, inherit eye/hat from parents, use floor-averaged parent rarity with a capped one-tier upgrade chance, force `hat: "none"` on `common`, and keep a 1% shiny chance.
+17. Confirming the pairing derives target offspring traits, reads `settings.breedConfig.hatchTimes`, and writes `settings.breedSlots[slotIndex]` with parent UUIDs, target traits, `createdAt`, and `hatchAt`. New eggs can only start within `breedConfig.slotCount`, while already-occupied overflow slots remain resumable until cleared after a slot-count reduction.
+18. The TUI runtime redraws once per second so both egg timers and shared reroll refill countdowns keep ticking live, and breed flow still keeps its hatch-check timer while leaving the screen with the `escape` key returns home without clearing the selected slot from settings.
+19. Once the selected slot is ready, breed flow hunts a real UUID whose deterministic roll output matches the stored target traits, persists it as `breedSlots[slotIndex].hatchedUuid`, and stages a hatched buddy with `bredFrom: [parentAUuid, parentBUuid]` so later resumes reopen the same offspring.
+20. The hatch screen offers Add, Equip, and Delete. Add appends the buddy to the collection, Equip appends and applies the UUID, and Delete discards the hatch. Add and Equip remain blocked while the collection is already at `maxBuddy`.
+21. The ready-hatch reveal reuses the shared ANSI buddy-card renderer so rarity accent, sprite, text, and stat bars stay visually consistent with roll and current-buddy screens.
+22. If Add or Equip fails, the selected slot stays persisted so the hatch can be retried later. Equip failures also roll back the collection save and restore that slot before returning control to the hatch screen.
+23. If the user relaunches the TUI or re-enters roll while `pendingBuddy` exists, controller/state rebuild the revealed roll state and resume that buddy without spending another charge.
+24. If the user runs `--current` or opens the current-buddy TUI view, companion-state reads stored soul data, regenerates UUID-derived bones, and renders the merged summary.
+25. If the user edits the current buddy name or personality, UUID manager mutates only those stored companion metadata fields and leaves UUID-derived bones unchanged.
 
 ## Release Verification Flow
 
@@ -111,7 +112,9 @@
   - `rollConfig`: user-tunable roll cap and refill interval; defaults to `100` charges and `300000` ms
   - `rollCharges`: mutable roll inventory with `available` and refill anchor `updatedAt`
   - `pendingBuddy`: last revealed-but-unsaved TUI buddy, cleared on successful Add or Equip
-  - `breedEgg`: persisted incubating egg with parent UUIDs, target traits, `createdAt`, `hatchAt`, and optional `hatchedUuid`
+  - `breedConfig`: user-tunable breed slot count plus per-rarity hatch timers; defaults to `3` slots and `10000/30000/60000/120000/300000` ms for `common` through `legendary`
+  - `breedSlots`: ordered `null | BreedEgg` entries storing incubating or ready eggs per slot, including optional per-slot `hatchedUuid`
+  - legacy `breedEgg` is migrated into `breedSlots[0]` on load, and slot-`0` helpers still expose the old single-slot API for compatibility
   - legacy `backup.json` is migrated into `settings.json` on first settings load
 - Collection: `~/.cb-zoo/collection.json`
   - standard roll entries store UUID, buddy traits, `total`, and `rolledAt`
@@ -131,11 +134,11 @@
 - Malformed backup data inside `settings.json` blocks backup/apply/restore paths before any config mutation.
 - Invalid `rollConfig` or `rollCharges` payloads normalize back to safe defaults on load instead of crashing the app.
 - Invalid `pendingBuddy` payloads are dropped to `null` on load instead of resuming bad state.
-- Invalid `breedEgg` payloads, including duplicate parent UUIDs or unsupported cosmetics, are dropped to `null` on load.
+- Invalid `breedSlots` entries, including duplicate parent UUIDs or unsupported cosmetics, are dropped to `null` on load. Malformed slot arrays fail strict breed-state reads, while non-strict loads still migrate a valid legacy `breedEgg` into `breedSlots[0]`.
 - Invalid collection JSON or invalid entry shapes block roll mode before backup, reveal, or collection writes, and preserve the existing file for manual recovery.
 - Collection saves fail with `Collection full (n/max)` once saved entries reach `maxBuddy`, and failed TUI Add/Equip keeps the pending buddy available to resume.
 - Brand-new CLI or TUI rolls fail fast with `No rolls left. Next +1 in mm:ss.` when the shared charge counter is empty, but resuming an already pending reveal stays allowed.
 - Plain CLI refunds a charge when reveal-side persistence fails before the prompt loop commits the roll, and TUI reveal-start paths fail closed because charge spend and `pendingBuddy` persistence share one settings write.
 - Breed start refuses to open a new pairing only when fewer than two saved buddies exist.
-- Hatch Add and Equip failures leave `breedEgg` in settings so the user can return and retry instead of losing the ready egg, while Delete intentionally clears it.
+- Hatch Add and Equip failures leave the selected `breedSlots[n]` egg in settings so the user can return and retry instead of losing the ready egg, while Delete intentionally clears that slot.
 - `CB_ZOO_DATA_DIR` cannot resolve to protected Claude state directories such as `.claude` or Windows `%APPDATA%\\Claude`, or any nested path inside them.

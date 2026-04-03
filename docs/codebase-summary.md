@@ -21,7 +21,7 @@ This repository currently contains a single CLI package named `cb-zoo`.
 - Buddy generation is deterministic from UUID plus the hardcoded salt.
 - UUID and collection JSON readers strip an optional UTF-8 BOM before parsing.
 - Local cb-zoo settings now live in `~/.cb-zoo/settings.json`; first load migrates legacy `backup.json` into the unified settings file.
-- Settings management normalizes `maxBuddy` to a positive integer with a default of `50`, stores backup metadata, persists `rollConfig` and `rollCharges`, persists both `pendingBuddy` and `breedEgg` including optional `hatchedUuid`, and drops invalid pending-roll or egg payloads instead of resuming them.
+- Settings management normalizes `maxBuddy` to a positive integer with a default of `50`, stores backup metadata, persists `rollConfig` and `rollCharges`, persists `pendingBuddy`, `breedConfig`, and ordered `breedSlots`, migrates legacy `breedEgg` into `breedSlots[0]`, and drops invalid pending-roll or breed-slot payloads instead of resuming them.
 - Launch routing is split by terminal mode: interactive no-flag TTY runs open the TUI, while `--plain`, direct command flags, help, and non-interactive runs stay on the plain CLI code paths.
 - Roll charges now default to `100` max uses with one lazy refill every `300000` ms, live in `settings.json`, and are shared across plain CLI rolls, TUI fresh rolls, and rerolls.
 - Plain CLI refunds a spent charge if local persistence fails before the reveal prompt, while the TUI only decrements charges when it can atomically persist the new `pendingBuddy` in `settings.json`.
@@ -30,12 +30,13 @@ This repository currently contains a single CLI package named `cb-zoo`.
 - The default TUI persists each revealed-but-unsaved roll as `pendingBuddy`, keeps it on Back, resumes it from the home "Resume Roll" action after restart, and clears it only after successful Add or Equip.
 - The shared shell header redraws once per second for live countdowns, and all TUI screens now use the same compact `collection/max | rerolls/max | timer` strip, with HOME also centering each menu row independently.
 - The reveal screen still disables the reroll action when the shared charge pool is empty.
-- The default TUI also exposes a breed loop: `Breed Buddy` starts parent selection, `View Egg` resumes incubation, and `Hatch Egg` resumes a ready egg from settings.
+- The default TUI also exposes a breed loop through a stable `Breed Buddy` home action; HOME shows slot-state summaries separately, and opening Breed starts at a slot picker instead of renaming the menu item.
 - Breed start now only requires at least two saved buddies, so pending rolls and full collection capacity do not block incubation.
+- The slot picker defaults to the first ready slot, otherwise the first occupied slot, otherwise slot 1, so Enter can resume an existing slot or start a new pairing in an empty slot.
 - Breed parent selection now uses a collection-style list/detail picker, keeps the chosen `parent A` in the top subtitle with a `← Back` affordance instead of a second body box, colors parent summaries by rarity accent, and opens a confirm screen after parent B before incubation starts.
 - The confirm screen shows compact `parent A × parent B` cards only; offspring target traits stay hidden until incubation starts and are still derived from the static lookup table, parent cosmetics, floor-averaged rarity with a capped one-tier upgrade chance, forced `hat: "none"` on common offspring, and a 1% shiny chance.
-- Incubating eggs persist as `settings.breedEgg` with parent UUIDs, target traits, and rarity-based timers: `10s` common, `30s` uncommon, `60s` rare, `120s` epic, `300s` legendary.
-- Ready eggs hunt a real UUID whose deterministic roll output matches the stored target traits, persist that UUID as `breedEgg.hatchedUuid`, and reopen as the same buddy on later resumes.
+- Incubating eggs persist as `settings.breedSlots`, while hatch timing comes from `settings.breedConfig.hatchTimes`; defaults remain `10s` common, `30s` uncommon, `60s` rare, `120s` epic, and `300s` legendary, but users can override them in `settings.json`.
+- Ready eggs hunt a real UUID whose deterministic roll output matches the stored target traits, persist that UUID as `breedSlots[n].hatchedUuid`, and reopen as the same buddy on later resumes.
 - The hatch reveal now reuses the shared rarity-accented buddy card renderer, so hatched sprite/text/stats stay color-consistent with roll and current views.
 - The hatch screen offers Add, Equip, and Delete. Add and Equip still stop at `maxBuddy`, while Delete discards the hatch and clears the egg intentionally.
 - If hatch Add or Equip fails, the egg remains in settings so the user can retry later instead of losing it.
@@ -53,14 +54,14 @@ This repository currently contains a single CLI package named `cb-zoo`.
 - 5-line sprite rendering contract
 - Settings load/save plus legacy `backup.json` migration
 - Roll-charge refill math, clamping, and zero-charge gating
-- Breed-egg load/save, invalid egg payload dropping, and `bredFrom` collection-entry persistence
+- Breed-config defaults, breed-slot load/save, legacy `breedEgg` migration, invalid egg payload dropping, and `bredFrom` collection-entry persistence
 - UUID backup/apply/restore, including BOM-tolerant config parsing and pinned restore metadata in `settings.json`
 - Claude account-state resolver ordering across primary and fallback paths
 - Invalid backup rejection before config or collection mutation
 - Collection persistence, capacity enforcement, and summary formatting
 - Corrupt collection rejection without overwriting local data
 - Pending buddy persistence, rollback, and resume behavior in the TUI
-- Breed-table symmetry/balance, offspring-trait generation, UUID hunting, incubating egg resume, stable ready-egg reopening, hatch actions, and recoverable full-collection failures
+- Breed-table symmetry/balance, slot selection defaults, configurable hatch timing, UUID hunting, incubating egg resume, stable ready-egg reopening in non-zero slots, hatch actions, and recoverable full-collection failures
 - CLI help rendering
 - CLI smoke coverage for `--help`, `--collection`, `--current`, and plain quick-roll prompt behavior
 - Unknown-flag rejection

@@ -9,6 +9,7 @@ import {
   DEFAULT_ROLL_REGEN_MS,
   getBackupData,
   getBreedEgg,
+  getBreedSlots,
   getMaxBuddy,
   getPendingBuddy,
   getRollCharges,
@@ -18,8 +19,10 @@ import {
   saveSettings,
   setBackupData,
   setBreedEgg,
+  setBreedSlot,
   setPendingBuddy
 } from "../src/settings-manager.js";
+import { DEFAULT_BREED_HATCH_TIMES, DEFAULT_BREED_SLOT_COUNT } from "../src/config.js";
 import { loadCollection, saveToCollection } from "../src/collection.js";
 import { withTempEnvironment } from "../test-support/with-temp-environment.js";
 
@@ -53,6 +56,9 @@ test("loadSettings returns defaults when no settings file exists", async () => {
     assert.deepEqual(settings.rollConfig, { maxCharges: DEFAULT_MAX_ROLL_CHARGES, regenMs: DEFAULT_ROLL_REGEN_MS });
     assert.equal(settings.rollCharges.available, DEFAULT_MAX_ROLL_CHARGES);
     assert.equal(typeof settings.rollCharges.updatedAt, "number");
+    assert.deepEqual(settings.breedConfig, { slotCount: DEFAULT_BREED_SLOT_COUNT, hatchTimes: DEFAULT_BREED_HATCH_TIMES });
+    assert.equal(settings.breedSlots.length, DEFAULT_BREED_SLOT_COUNT);
+    assert.equal(settings.breedSlots.every((slot) => slot === null), true);
     assert.equal(settings.pendingBuddy, null);
     assert.equal(settings.breedEgg, null);
     assert.equal(existsSync(join(dataDir, "settings.json")), false);
@@ -68,6 +74,8 @@ test("loadSettings fills missing settings fields with defaults", async () => {
     assert.equal(settings.maxBuddy, 12);
     assert.deepEqual(settings.rollConfig, { maxCharges: DEFAULT_MAX_ROLL_CHARGES, regenMs: DEFAULT_ROLL_REGEN_MS });
     assert.equal(settings.rollCharges.available, DEFAULT_MAX_ROLL_CHARGES);
+    assert.deepEqual(settings.breedConfig, { slotCount: DEFAULT_BREED_SLOT_COUNT, hatchTimes: DEFAULT_BREED_HATCH_TIMES });
+    assert.equal(settings.breedSlots.length, DEFAULT_BREED_SLOT_COUNT);
     assert.equal(settings.pendingBuddy, null);
     assert.equal(settings.breedEgg, null);
   });
@@ -96,6 +104,8 @@ test("loadSettings migrates legacy backup.json into settings.json", async () => 
     assert.equal(settings.maxBuddy, 50);
     assert.deepEqual(settings.rollConfig, { maxCharges: DEFAULT_MAX_ROLL_CHARGES, regenMs: DEFAULT_ROLL_REGEN_MS });
     assert.equal(settings.rollCharges.available, DEFAULT_MAX_ROLL_CHARGES);
+    assert.deepEqual(settings.breedConfig, { slotCount: DEFAULT_BREED_SLOT_COUNT, hatchTimes: DEFAULT_BREED_HATCH_TIMES });
+    assert.equal(settings.breedSlots.length, DEFAULT_BREED_SLOT_COUNT);
     assert.equal(settings.pendingBuddy, null);
     assert.equal(settings.breedEgg, null);
     assert.equal(existsSync(backupFile), false);
@@ -145,6 +155,133 @@ test("breed egg accessors round-trip egg data", async () => {
   });
 });
 
+test("loadSettings migrates legacy breedEgg into breedSlots[0]", async () => {
+  await withTempEnvironment(async ({ dataDir }) => {
+    writeFileSync(
+      join(dataDir, "settings.json"),
+      JSON.stringify(
+        {
+          backup: null,
+          maxBuddy: 50,
+          pendingBuddy: null,
+          breedEgg: BREED_EGG
+        },
+        null,
+        2
+      ),
+      "utf8"
+    );
+
+    const settings = loadSettings();
+    assert.equal(settings.breedEgg.species, BREED_EGG.species);
+    assert.equal(settings.breedSlots[0].species, BREED_EGG.species);
+    assert.equal(settings.breedSlots.length, DEFAULT_BREED_SLOT_COUNT);
+  });
+});
+
+test("strict breed-state loading rejects malformed breedSlots objects", async () => {
+  await withTempEnvironment(async ({ dataDir }) => {
+    writeFileSync(
+      join(dataDir, "settings.json"),
+      JSON.stringify(
+        {
+          backup: null,
+          maxBuddy: 50,
+          pendingBuddy: null,
+          breedSlots: {},
+          breedEgg: BREED_EGG
+        },
+        null,
+        2
+      ),
+      "utf8"
+    );
+
+    assert.throws(() => loadSettings({ strictBreedState: true }), /Breed slots must be a JSON array/i);
+  });
+});
+
+test("malformed breedSlots still falls back to legacy breedEgg on non-strict load", async () => {
+  await withTempEnvironment(async ({ dataDir }) => {
+    writeFileSync(
+      join(dataDir, "settings.json"),
+      JSON.stringify(
+        {
+          backup: null,
+          maxBuddy: 50,
+          pendingBuddy: null,
+          breedSlots: {},
+          breedEgg: BREED_EGG
+        },
+        null,
+        2
+      ),
+      "utf8"
+    );
+
+    const settings = loadSettings();
+    assert.equal(settings.breedSlots[0].species, BREED_EGG.species);
+    assert.equal(settings.breedEgg.species, BREED_EGG.species);
+  });
+});
+
+test("loadSettings preserves occupied overflow breed slots even when slotCount is lower", async () => {
+  await withTempEnvironment(async ({ dataDir }) => {
+    writeFileSync(
+      join(dataDir, "settings.json"),
+      JSON.stringify(
+        {
+          backup: null,
+          maxBuddy: 50,
+          pendingBuddy: null,
+          breedConfig: {
+            slotCount: 1,
+            hatchTimes: { ...DEFAULT_BREED_HATCH_TIMES }
+          },
+          breedSlots: [null, BREED_EGG]
+        },
+        null,
+        2
+      ),
+      "utf8"
+    );
+
+    const settings = loadSettings();
+    assert.equal(settings.breedConfig.slotCount, 1);
+    assert.equal(settings.breedSlots.length, 2);
+    assert.equal(settings.breedSlots[0], null);
+    assert.equal(settings.breedSlots[1].species, BREED_EGG.species);
+  });
+});
+
+test("setBreedSlot rejects writes beyond configured capacity unless the overflow slot is already occupied", async () => {
+  await withTempEnvironment(async () => {
+    saveSettings({
+      backup: null,
+      maxBuddy: 50,
+      pendingBuddy: null,
+      breedConfig: {
+        slotCount: 1,
+        hatchTimes: { ...DEFAULT_BREED_HATCH_TIMES }
+      },
+      breedSlots: []
+    });
+
+    assert.throws(() => setBreedSlot(3, BREED_EGG), /exceeds configured slotCount/i);
+
+    saveSettings({
+      ...loadSettings(),
+      breedConfig: {
+        slotCount: 1,
+        hatchTimes: { ...DEFAULT_BREED_HATCH_TIMES }
+      },
+      breedSlots: [null, BREED_EGG]
+    });
+    setBreedSlot(1, { ...BREED_EGG, hatchAt: BREED_EGG.hatchAt + 1 });
+    assert.equal(getBreedSlots()[1].hatchAt, BREED_EGG.hatchAt + 1);
+  });
+});
+
 test("loadSettings drops invalid pendingBuddy payloads", async () => {
   await withTempEnvironment(async ({ dataDir }) => {
     writeFileSync(
@@ -175,6 +312,7 @@ test("loadSettings defaults invalid roll config and roll charges", async () => {
           maxBuddy: 50,
           rollConfig: { maxCharges: -1, regenMs: 0 },
           rollCharges: { available: "bad", updatedAt: "bad" },
+          breedConfig: { slotCount: 0, hatchTimes: { rare: -1 } },
           pendingBuddy: null,
           breedEgg: null
         },
@@ -188,6 +326,7 @@ test("loadSettings defaults invalid roll config and roll charges", async () => {
     assert.deepEqual(settings.rollConfig, { maxCharges: DEFAULT_MAX_ROLL_CHARGES, regenMs: DEFAULT_ROLL_REGEN_MS });
     assert.equal(settings.rollCharges.available, DEFAULT_MAX_ROLL_CHARGES);
     assert.equal(typeof settings.rollCharges.updatedAt, "number");
+    assert.deepEqual(settings.breedConfig, { slotCount: DEFAULT_BREED_SLOT_COUNT, hatchTimes: DEFAULT_BREED_HATCH_TIMES });
   });
 });
 

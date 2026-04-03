@@ -16,12 +16,14 @@
 - Plain CLI now refunds a just-spent charge if collection persistence fails before the reveal prompt, while the TUI only decrements charges when it can atomically persist `pendingBuddy`, keeping bad local state fail-closed.
 - The shared shell header still updates live once per second, while HOME now uses that space for a compact `capacity | rerolls | timer` strip and centers the option rows for a cleaner menu layout.
 - The compact top strip is now consistent across the whole TUI instead of changing format between HOME and the other screens.
-- Added a TUI-only Breed Buddy flow that selects two saved collection entries through a collection-style picker, pauses on a confirm screen after parent B, and then starts incubation before saving the hatched buddy back into the collection.
+- Added a TUI-only Breed Buddy flow that starts on a slot picker, selects two saved collection entries through a collection-style picker, pauses on a confirm screen after parent B, and then starts incubation before saving the hatched buddy back into the collection.
 - Breed select-b now shows the chosen parent in the top subtitle with a `← Back` affordance, keeps the main body to list + highlighted detail only, and the confirm step now shows compact `parent A × parent B` cards with rarity-matched subtitle accents instead of an offspring preview.
-- Breed eggs now persist in `~/.cb-zoo/settings.json` as `breedEgg`, survive app restarts, and switch the home action between `Breed Buddy`, `View Egg`, and `Hatch Egg`.
+- HOME now keeps a stable `Breed Buddy` action and surfaces breed progress through a ready/incubating/empty slot summary instead of switching menu labels.
+- Breed settings now persist in `~/.cb-zoo/settings.json` as `breedConfig.slotCount` and `breedConfig.hatchTimes`, defaulting to `3` slots and `10000/30000/60000/120000/300000` ms.
+- Breed eggs now persist in `~/.cb-zoo/settings.json` as ordered `breedSlots`, legacy `breedEgg` data migrates into slot 1 on load, and the slot picker defaults to the first ready slot, then the first occupied slot, then the first empty slot.
 - Breeding now stays accessible even at full collection capacity, while the hatch screen explicitly offers Add, Equip, or Delete once the egg is ready.
 - Bred buddies now keep lineage metadata in collection storage through `bredFrom: [parentAUuid, parentBUuid]`.
-- Ready eggs now persist `hatchedUuid` after the first successful UUID hunt so reopen/restart resumes the same offspring instead of rehunting.
+- Ready eggs now persist `breedSlots[n].hatchedUuid` after the first successful UUID hunt so reopen/restart resumes the same offspring instead of rehunting.
 - Unified local cb-zoo state under `~/.cb-zoo/settings.json`, auto-migrating legacy `backup.json` and storing backup metadata, `maxBuddy`, and pending roll state in one file.
 - Collection surfaces now show count/capacity, default `maxBuddy` remains `50`, and roll Add/Equip paths refuse to overflow a full collection.
 - TUI roll state now persists unsaved reveals, keeps them on Back, and re-enters the revealed buddy through "Resume Roll" after app restart.

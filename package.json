@@ -1,6 +1,6 @@
 {
   "name": "cb-zoo",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Claude Buddy Gacha tool for rolling, collecting, and applying Claude Code buddies",
   "type": "module",
   "repository": {

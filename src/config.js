@@ -49,13 +49,15 @@ export const STARS = {
   legendary: "★★★★★"
 };
 export const RARITY_ORDER = Object.fromEntries(RARITIES.map((rarity, index) => [rarity, index]));
-export const EGG_HATCH_TIMES = {
+export const DEFAULT_BREED_SLOT_COUNT = 3;
+export const DEFAULT_BREED_HATCH_TIMES = {
   common: 10_000,
   uncommon: 30_000,
   rare: 60_000,
   epic: 120_000,
   legendary: 300_000
 };
+export const EGG_HATCH_TIMES = DEFAULT_BREED_HATCH_TIMES;
 export const EGG_COLORS = {
   common: "white",
   uncommon: "green",

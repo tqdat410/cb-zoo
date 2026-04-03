@@ -86,7 +86,7 @@ export function renderCollectionView(state, terminal = {}) {
     const actualIndex = windowStart + index;
     const selectedIndex = actualIndex === state.collectionIndex;
     const accent = getRarityAccent(entry.rarity).color;
-    const label = `${entry.species.padEnd(10)} ${entry.rarity.padEnd(10)} ${String(entry.total).padStart(3)}`;
+    const label = `${entry.species.padEnd(10)} ${entry.rarity.padEnd(10)} ${String(entry.total).padStart(3)}${entry.shiny ? " ✦" : ""}`;
     if (selectedIndex) {
       return accent
         ? `${accent}${ANSI.bold}▶ ${label}${ANSI.reset}`

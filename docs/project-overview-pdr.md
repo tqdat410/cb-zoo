@@ -28,14 +28,16 @@
 - Enforce collection capacity from `settings.maxBuddy`, defaulting to `50`
 - Show collection capacity as `current/maxBuddy` in collection views
 - Persist the current revealed TUI roll as `pendingBuddy`, keep it on Back or relaunch, and clear it after successful Add or Equip
-- Expose a TUI-only breed action that renders as `Breed Buddy`, `View Egg`, or `Hatch Egg` depending on persisted egg state
+- Expose a stable TUI-only `Breed Buddy` action, while HOME summarizes ready, incubating, and empty breed slots separately instead of renaming the menu item
+- Store breed settings in `settings.breedConfig.slotCount` and `settings.breedConfig.hatchTimes`, defaulting to `3` slots and `10000/30000/60000/120000/300000` ms for `common` through `legendary`
+- Open breeding on a slot picker that defaults to the first ready slot, otherwise the first occupied slot, otherwise slot 1
 - Start breeding whenever at least two saved collection entries exist, even if a pending roll or a full collection is already present
 - Require the second parent to resolve to a different UUID than the first parent
-- Preview offspring traits before incubation using a static species table, parent-inherited cosmetics, floor-averaged rarity with a capped one-tier upgrade chance, forced `hat: "none"` on common offspring, and a 1% shiny chance
-- Persist incubating eggs as `settings.breedEgg` with parent UUIDs, target traits, `createdAt`, and `hatchAt`
-- Resume incubating eggs after leaving the breed screen or restarting the app, and hatch ready eggs into a stable UUID-backed buddy via persisted `hatchedUuid`
+- Derive offspring traits only after pairing confirmation using a static species table, parent-inherited cosmetics, floor-averaged rarity with a capped one-tier upgrade chance, forced `hat: "none"` on common offspring, and a 1% shiny chance
+- Persist incubating eggs as ordered `settings.breedSlots` entries with parent UUIDs, target traits, `createdAt`, and `hatchAt`, and migrate legacy `settings.breedEgg` into `breedSlots[0]` on first load
+- Resume incubating eggs after leaving the breed screen or restarting the app, and hatch ready eggs into a stable UUID-backed buddy via per-slot persisted `hatchedUuid`
 - Offer Add, Equip, and Delete actions after hatch time finishes, with Add and Equip still blocked by `maxBuddy` when the collection is full
-- Save bred buddies back into the collection with optional `bredFrom` lineage metadata, and clear `breedEgg` only after a successful Add, Equip, or Delete path
+- Save bred buddies back into the collection with optional `bredFrom` lineage metadata, and clear only the selected breed slot after a successful Add, Equip, or Delete path
 - Let the TUI Collection view apply the selected buddy UUID without removing the saved entry, or delete the selected buddy after explicit confirmation
 - Reject malformed UUID values and invalid Claude config shapes before config writes
 - Reject companion metadata edits when Claude state has no valid stored companion yet or when trimmed edit values are blank
@@ -55,10 +57,10 @@
 - No token or config leakage in logs
 - Restore terminal cursor/state cleanly after TUI exit or failure
 - Show a minimum-size warning instead of the full TUI when the terminal is smaller than `64x24`
-- Breed incubation timing must stay deterministic per rarity: `10s` common, `30s` uncommon, `60s` rare, `120s` epic, `300s` legendary
+- Default breed incubation timing starts at `10s` common, `30s` uncommon, `60s` rare, `120s` epic, and `300s` legendary, but actual hatch timing must come from `settings.breedConfig.hatchTimes`
 - Atomic JSON writes for config, settings, and collection files
 - BOM-tolerant JSON parsing for persisted state files
-- Fail closed on corrupt settings, backup, or collection data, while dropping invalid pending roll or invalid breed-egg payloads instead of resuming them
+- Fail closed on corrupt settings, backup, or collection data, while dropping invalid pending roll, invalid breed-slot payloads, or invalid legacy `breedEgg` migration payloads instead of resuming them
 - Prevent cb-zoo state files from being redirected into protected Claude state directories such as `.claude` or Windows `%APPDATA%\\Claude` through env overrides
 
 ## Risks
@@ -78,6 +80,6 @@
 - UUID backup/apply/restore flow preserves unrelated config fields and tolerates a UTF-8 BOM in Claude config
 - Quick roll rejects corrupt backup or collection files before backup, reveal, or local mutation
 - Breed table tests prove symmetric parent lookup coverage and balanced offspring distribution across species
-- Settings tests cover `breedEgg` round-trips plus dropping invalid persisted egg payloads
-- TUI breed tests cover parent selection, egg persistence/resume, stable ready-egg reopening, hatch Add/Equip/Delete, lineage persistence, duplicate-parent rejection, and full-collection recovery
+- Settings tests cover `breedConfig` defaults, `breedSlots` round-trips, legacy `breedEgg` migration, and dropping invalid persisted egg payloads
+- TUI breed tests cover slot selection defaults, parent selection, configurable hatch timing, egg persistence/resume, stable ready-egg reopening, non-zero slot resume, hatch Add/Equip/Delete, lineage persistence, duplicate-parent rejection, and full-collection recovery
 - Sprite rendering keeps a 5-line contract for stable card layout

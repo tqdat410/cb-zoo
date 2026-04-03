@@ -1,6 +1,15 @@
 import { existsSync, mkdirSync, readFileSync, renameSync, unlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { EYES, HATS, RARITIES, SPECIES, getDataDir, getSettingsFile } from "./config.js";
+import {
+  DEFAULT_BREED_HATCH_TIMES,
+  DEFAULT_BREED_SLOT_COUNT,
+  EYES,
+  HATS,
+  RARITIES,
+  SPECIES,
+  getDataDir,
+  getSettingsFile
+} from "./config.js";
 import { isUuid } from "./claude-state.js";
 
 export const DEFAULT_MAX_BUDDY = 50;
@@ -194,10 +203,6 @@ function isRollCharges(rollCharges) {
   );
 }
 
-function normalizeRollCharges(rollCharges, rollConfig, now = Date.now()) {
-  return normalizeRollChargesWithOptions(rollCharges, rollConfig, now);
-}
-
 function normalizeRollChargesWithOptions(rollCharges, rollConfig, now = Date.now(), { strictRollState = false } = {}) {
   if (rollCharges == null) {
     return {
@@ -221,22 +226,137 @@ function normalizeRollChargesWithOptions(rollCharges, rollConfig, now = Date.now
 }
 
 function toStoredRollCharges(rollCharges, rollConfig) {
-  const storedRollCharges = normalizeRollChargesWithOptions(rollCharges, rollConfig, Date.now(), { strict: true });
+  const storedRollCharges = normalizeRollChargesWithOptions(rollCharges, rollConfig, Date.now(), { strictRollState: true });
   if (!isRollCharges(storedRollCharges)) {
     throw new Error("Refusing to save invalid roll charge data.");
   }
   return storedRollCharges;
 }
 
+function normalizeBreedHatchTimes(hatchTimes, { strictBreedState = false } = {}) {
+  if (hatchTimes == null) {
+    return { ...DEFAULT_BREED_HATCH_TIMES };
+  }
+  if (!hatchTimes || typeof hatchTimes !== "object" || Array.isArray(hatchTimes)) {
+    if (strictBreedState) {
+      throw new Error("Breed hatch times must be a JSON object.");
+    }
+    return { ...DEFAULT_BREED_HATCH_TIMES };
+  }
+
+  const normalized = {};
+  for (const rarity of RARITIES) {
+    const value = hatchTimes[rarity];
+    if (strictBreedState && value !== undefined && (!Number.isInteger(value) || value <= 0)) {
+      throw new Error(`Breed hatch time for ${rarity} must be a positive integer.`);
+    }
+    normalized[rarity] = Number.isInteger(value) && value > 0 ? value : DEFAULT_BREED_HATCH_TIMES[rarity];
+  }
+  return normalized;
+}
+
+function normalizeBreedConfig(breedConfig, { strictBreedState = false } = {}) {
+  if (breedConfig == null) {
+    return {
+      slotCount: DEFAULT_BREED_SLOT_COUNT,
+      hatchTimes: { ...DEFAULT_BREED_HATCH_TIMES }
+    };
+  }
+  if (!breedConfig || typeof breedConfig !== "object" || Array.isArray(breedConfig)) {
+    if (strictBreedState) {
+      throw new Error("Breed config must be a JSON object.");
+    }
+    return {
+      slotCount: DEFAULT_BREED_SLOT_COUNT,
+      hatchTimes: { ...DEFAULT_BREED_HATCH_TIMES }
+    };
+  }
+  if (
+    strictBreedState &&
+    breedConfig.slotCount !== undefined &&
+    (!Number.isInteger(breedConfig.slotCount) || breedConfig.slotCount <= 0)
+  ) {
+    throw new Error("Breed config slotCount must be a positive integer.");
+  }
+
+  return {
+    slotCount:
+      Number.isInteger(breedConfig.slotCount) && breedConfig.slotCount > 0
+        ? breedConfig.slotCount
+        : DEFAULT_BREED_SLOT_COUNT,
+    hatchTimes: normalizeBreedHatchTimes(breedConfig.hatchTimes, { strictBreedState })
+  };
+}
+
+function compactBreedSlots(slots) {
+  const highestOccupiedIndex = slots.reduce((maxIndex, slot, index) => (slot ? index : maxIndex), -1);
+  return highestOccupiedIndex >= 0 ? slots.slice(0, highestOccupiedIndex + 1) : [];
+}
+
+function normalizeBreedSlots(
+  breedSlots,
+  breedConfig,
+  { legacyEgg, strictBreedState = false, expandToEffectiveCount = true } = {}
+) {
+  let sourceSlots;
+  if (Array.isArray(breedSlots)) {
+    sourceSlots = breedSlots;
+  } else if (breedSlots == null) {
+    sourceSlots = legacyEgg !== undefined ? [legacyEgg] : [];
+  } else {
+    if (strictBreedState) {
+      throw new Error("Breed slots must be a JSON array.");
+    }
+    sourceSlots = legacyEgg !== undefined ? [legacyEgg] : [];
+  }
+
+  const normalizedSlots = sourceSlots.map((slot) => {
+    if (slot == null) {
+      return null;
+    }
+    if (isBreedEgg(slot)) {
+      return slot;
+    }
+    if (strictBreedState) {
+      throw new Error("Breed slots must contain null or valid breed egg objects.");
+    }
+    return null;
+  });
+
+  const compactedSlots = compactBreedSlots(normalizedSlots);
+  if (!expandToEffectiveCount) {
+    return compactedSlots;
+  }
+
+  const effectiveCount = Math.max(breedConfig.slotCount, compactedSlots.length);
+  return Array.from({ length: effectiveCount }, (_, index) => compactedSlots[index] ?? null);
+}
+
+function toStoredBreedSlots(breedSlots, breedConfig, legacyEgg) {
+  return normalizeBreedSlots(breedSlots, breedConfig, {
+    legacyEgg,
+    strictBreedState: true,
+    expandToEffectiveCount: false
+  });
+}
+
 function normalizeSettings(settings, options = {}) {
   const rollConfig = normalizeRollConfig(settings?.rollConfig, options);
+  const breedConfig = normalizeBreedConfig(settings?.breedConfig, options);
+  const breedSlots = normalizeBreedSlots(settings?.breedSlots, breedConfig, {
+    legacyEgg: settings?.breedEgg,
+    strictBreedState: options.strictBreedState
+  });
+
   return {
     backup: normalizeBackupData(settings?.backup, options),
     maxBuddy: normalizeMaxBuddy(settings?.maxBuddy),
     rollConfig,
     rollCharges: normalizeRollChargesWithOptions(settings?.rollCharges, rollConfig, options.now, options),
-    pendingBuddy: normalizePendingBuddy(settings?.pendingBuddy),
-    breedEgg: normalizeBreedEgg(settings?.breedEgg)
+    breedConfig,
+    breedSlots,
+    breedEgg: breedSlots[0] ?? null,
+    pendingBuddy: normalizePendingBuddy(settings?.pendingBuddy)
   };
 }
 
@@ -246,16 +366,20 @@ export function saveSettings(settings) {
   if (existsSync(tempFile)) {
     throw new Error(`Refusing to write through existing temporary file at ${tempFile}. Remove it and retry.`);
   }
+
   mkdirSync(getDataDir(), { recursive: true });
   const rollConfig = normalizeRollConfig(settings?.rollConfig);
+  const breedConfig = normalizeBreedConfig(settings?.breedConfig);
   const payload = {
     backup: normalizeBackupData(settings?.backup, { strict: true }),
     maxBuddy: normalizeMaxBuddy(settings?.maxBuddy),
     rollConfig,
     rollCharges: toStoredRollCharges(settings?.rollCharges, rollConfig),
-    pendingBuddy: settings?.pendingBuddy == null ? null : toStoredPendingBuddy(settings.pendingBuddy),
-    breedEgg: settings?.breedEgg == null ? null : toStoredBreedEgg(settings.breedEgg)
+    breedConfig,
+    breedSlots: toStoredBreedSlots(settings?.breedSlots, breedConfig, settings?.breedEgg),
+    pendingBuddy: settings?.pendingBuddy == null ? null : toStoredPendingBuddy(settings.pendingBuddy)
   };
+
   writeFileSync(tempFile, `${JSON.stringify(payload, null, 2)}\n`, { encoding: "utf8", flag: "wx" });
   renameSync(tempFile, filePath);
   return payload;
@@ -263,7 +387,7 @@ export function saveSettings(settings) {
 
 export function migrateFromBackup(options = {}) {
   const backup = normalizeBackupData(readJsonObject(getLegacyBackupFile(), "backup"), { strict: true });
-  const settings = saveSettings({ backup, maxBuddy: DEFAULT_MAX_BUDDY, pendingBuddy: null, breedEgg: null });
+  const settings = saveSettings({ backup, maxBuddy: DEFAULT_MAX_BUDDY, pendingBuddy: null, breedSlots: [] });
   unlinkSync(getLegacyBackupFile());
   return normalizeSettings(settings, options);
 }
@@ -275,7 +399,7 @@ export function loadSettings(options = {}) {
     if (existsSync(legacyBackupFile)) {
       return migrateFromBackup(options);
     }
-    return normalizeSettings({ backup: null, maxBuddy: DEFAULT_MAX_BUDDY, pendingBuddy: null, breedEgg: null }, options);
+    return normalizeSettings({ backup: null, maxBuddy: DEFAULT_MAX_BUDDY, pendingBuddy: null, breedSlots: [] }, options);
   }
   return normalizeSettings(readJsonObject(settingsFile, "settings"), options);
 }
@@ -297,10 +421,6 @@ export function getPendingBuddy() {
   return loadSettings().pendingBuddy;
 }
 
-export function getBreedEgg() {
-  return loadSettings().breedEgg;
-}
-
 export function getRollConfig() {
   return loadSettings({ strict: true, strictRollState: true }).rollConfig;
 }
@@ -309,14 +429,43 @@ export function getRollCharges() {
   return loadSettings({ strict: true, strictRollState: true }).rollCharges;
 }
 
+export function getBreedConfig() {
+  return loadSettings({ strict: true, strictBreedState: true }).breedConfig;
+}
+
+export function getBreedSlots() {
+  return loadSettings().breedSlots;
+}
+
+export function getBreedSlot(index) {
+  return getBreedSlots()[index] ?? null;
+}
+
+export function getBreedEgg() {
+  return getBreedSlot(0);
+}
+
 export function setPendingBuddy(buddy) {
   const settings = loadSettings({ strict: true });
   return saveSettings({ ...settings, pendingBuddy: toStoredPendingBuddy(buddy) });
 }
 
-export function setBreedEgg(egg) {
+export function setBreedSlot(index, egg) {
+  if (!Number.isInteger(index) || index < 0) {
+    throw new Error("Breed slot index must be a non-negative integer.");
+  }
   const settings = loadSettings({ strict: true });
-  return saveSettings({ ...settings, breedEgg: toStoredBreedEgg(egg) });
+  const canWriteOverflowSlot = index < settings.breedSlots.length && settings.breedSlots[index] != null;
+  if (index >= settings.breedConfig.slotCount && !canWriteOverflowSlot) {
+    throw new Error(`Breed slot ${index + 1} exceeds configured slotCount ${settings.breedConfig.slotCount}.`);
+  }
+  const nextSlots = [...settings.breedSlots];
+  nextSlots[index] = toStoredBreedEgg(egg);
+  return saveSettings({ ...settings, breedSlots: nextSlots });
+}
+
+export function setBreedEgg(egg) {
+  return setBreedSlot(0, egg);
 }
 
 export function clearPendingBuddy() {
@@ -324,9 +473,20 @@ export function clearPendingBuddy() {
   return saveSettings({ ...settings, pendingBuddy: null });
 }
 
-export function clearBreedEgg() {
+export function clearBreedSlot(index) {
+  if (!Number.isInteger(index) || index < 0) {
+    throw new Error("Breed slot index must be a non-negative integer.");
+  }
   const settings = loadSettings({ strict: true });
-  return saveSettings({ ...settings, breedEgg: null });
+  const nextSlots = [...settings.breedSlots];
+  if (index < nextSlots.length) {
+    nextSlots[index] = null;
+  }
+  return saveSettings({ ...settings, breedSlots: nextSlots });
+}
+
+export function clearBreedEgg() {
+  return clearBreedSlot(0);
 }
 
 export function setRollCharges(rollCharges) {
@@ -334,7 +494,11 @@ export function setRollCharges(rollCharges) {
   return saveSettings({ ...settings, rollCharges: toStoredRollCharges(rollCharges, settings.rollConfig) });
 }
 
-export function isEggReady() {
-  const egg = getBreedEgg();
+export function isBreedSlotReady(index) {
+  const egg = getBreedSlot(index);
   return Boolean(egg && Date.now() >= egg.hatchAt);
+}
+
+export function isEggReady() {
+  return isBreedSlotReady(0);
 }

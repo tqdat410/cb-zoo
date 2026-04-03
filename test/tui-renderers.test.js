@@ -6,7 +6,7 @@ import { renderCollectionView } from "../src/tui/views/collection-view.js";
 import { renderCurrentView } from "../src/tui/views/current-view.js";
 import { renderEditView } from "../src/tui/views/edit-view.js";
 import { renderRollView } from "../src/tui/views/roll-view.js";
-import { renderBreedConfirm, renderBreedSelectA, renderBreedSelectB } from "../src/tui/views/breed-view.js";
+import { renderBreedConfirm, renderBreedSelectA, renderBreedSelectB, renderBreedSlotSelect } from "../src/tui/views/breed-view.js";
 import { renderEggView, renderHatchView } from "../src/tui/views/egg-view.js";
 import { showBuddyCard } from "../src/gacha-animation.js";
 import { formatCompanionSummary } from "../src/companion-state.js";
@@ -221,7 +221,7 @@ test("home and roll views show charge countdown when rerolls are empty", async (
 test("home menu centers each option row independently", async () => {
   await withTempEnvironment(async () => {
     const home = renderHomeView({ menuIndex: 3, statusMessage: "Ready." }, { columns: 90, rows: 30 });
-    const selectedLine = home.bodyLines.find((line) => stripAnsi(line).includes("Breed Buddy")) || "";
+    const selectedLine = home.bodyLines.find((line) => stripAnsi(line).trim() === "▶ Breed Buddy") || "";
     const plainLine = home.bodyLines.find((line) => stripAnsi(line).includes("Collection")) || "";
 
     assert.equal(stripAnsi(selectedLine), stripAnsi(centerVisible(`${ANSI.gold}${ANSI.bold}▶ Breed Buddy${ANSI.reset}`, 70)));
@@ -230,9 +230,35 @@ test("home menu centers each option row independently", async () => {
 });
 
 test("breed and egg views render parent selection and hatch content", () => {
+  const slotSelect = renderBreedSlotSelect({
+    breed: {
+      phase: "slot-select",
+      slots: [
+        null,
+        {
+          parentA: "11111111-1111-4111-8111-111111111111",
+          parentB: "22222222-2222-4222-8222-222222222222",
+          species: "goose",
+          rarity: "uncommon",
+          eye: "✦",
+          hat: "none",
+          shiny: false,
+          createdAt: Date.now(),
+          hatchAt: Date.now() + 30_000
+        }
+      ],
+      selectIndex: 1
+    },
+    statusMessage: "Choose a breed slot."
+  }, { columns: 90, rows: 30 });
+  assert.equal(slotSelect.subtitle, "Choose a breed slot.");
+  assert.match(slotSelect.bodyLines.join("\n"), /Slot 2/);
+  assert.match(slotSelect.bodyLines.join("\n"), /incubating/);
+
   const selectA = renderBreedSelectA({
     breed: {
       phase: "select-a",
+      slotIndex: 0,
       options: [
         {
           entry: { species: "cat", rarity: "rare", total: 251, eye: "✦", hat: "crown", shiny: false }
@@ -242,7 +268,7 @@ test("breed and egg views render parent selection and hatch content", () => {
     },
     statusMessage: "Choose the first parent."
   }, { columns: 90, rows: 30 });
-  assert.equal(selectA.subtitle, "Choose the first buddy.");
+  assert.equal(selectA.subtitle, "Slot 1  Choose the first buddy.");
   assert.match(selectA.bodyLines.join("\n"), /RARE CAT/);
   assert.match(selectA.bodyLines.join("\n"), /Eyes: ✦  Hat: crown/);
   assert.doesNotMatch(selectA.bodyLines.join("\n"), /Choose the first buddy/);
@@ -250,6 +276,7 @@ test("breed and egg views render parent selection and hatch content", () => {
   const selectB = renderBreedSelectB({
     breed: {
       phase: "select-b",
+      slotIndex: 0,
       parentA: { species: "cat", rarity: "rare", eye: "✦", hat: "crown" },
       options: [
         {
@@ -260,6 +287,7 @@ test("breed and egg views render parent selection and hatch content", () => {
     },
     statusMessage: "Choose the second parent."
   }, { columns: 90, rows: 30 });
+  assert.match(selectB.subtitle, /Slot 1/);
   assert.match(selectB.subtitle, /← Back/);
   assert.match(selectB.subtitle, /A: CAT rare/);
   assertIncludes(selectB.subtitle, ANSI.blue);
@@ -270,11 +298,13 @@ test("breed and egg views render parent selection and hatch content", () => {
   const confirm = renderBreedConfirm({
     breed: {
       phase: "confirm",
+      slotIndex: 0,
       parentA: { species: "cat", rarity: "rare", eye: "✦", hat: "crown", shiny: false, total: 251 },
       parentB: { species: "duck", rarity: "uncommon", eye: "·", hat: "none", shiny: false, total: 154 }
     },
     statusMessage: "Confirm the pairing."
   }, { columns: 90, rows: 30 });
+  assert.match(confirm.subtitle, /Slot 1/);
   assert.match(confirm.subtitle, /← Back/);
   assert.match(confirm.subtitle, /A: CAT rare/);
   assert.match(confirm.subtitle, /B: DUCK uncommon/);
@@ -289,6 +319,7 @@ test("breed and egg views render parent selection and hatch content", () => {
 
   const egg = renderEggView({
     breed: {
+      slotIndex: 0,
       egg: {
         parentA: "11111111-1111-4111-8111-111111111111",
         parentB: "22222222-2222-4222-8222-222222222222",
@@ -303,11 +334,13 @@ test("breed and egg views render parent selection and hatch content", () => {
     },
     statusMessage: "Incubating"
   }, { columns: 90, rows: 30 });
+  assert.match(egg.subtitle, /Slot 1/);
   assert.match(egg.bodyLines.join("\n"), /Lineage: cat × duck/);
   assert.match(egg.bodyLines.join("\n"), /Hatching in/);
 
   const hatch = renderHatchView({
     breed: {
+      slotIndex: 0,
       hatchedBuddy: {
         species: "goose",
         rarity: "uncommon",
@@ -330,6 +363,7 @@ test("breed and egg views render parent selection and hatch content", () => {
     },
     statusMessage: "Ready"
   }, { columns: 90, rows: 30 });
+  assert.match(hatch.subtitle, /Slot 1/);
   assert.match(hatch.bodyLines.join("\n"), /EGG HATCHED/);
   assert.match(hatch.bodyLines.join("\n"), /Bred from cat × duck/);
   assert.match(hatch.bodyLines.join("\n"), /DEBUGGING/);
@@ -340,6 +374,7 @@ test("breed and egg views render parent selection and hatch content", () => {
 
   const fullHatch = renderHatchView({
     breed: {
+      slotIndex: 0,
       hatchedBuddy: {
         species: "goose",
         rarity: "uncommon",
@@ -367,7 +402,7 @@ test("breed and egg views render parent selection and hatch content", () => {
   assert.match(fullHatch.footer, /D discard/);
 });
 
-test("home view shows incubating and ready egg labels", async () => {
+test("home view summarizes slot state while keeping a stable breed label", async () => {
   await withTempEnvironment(async () => {
     setBreedEgg({
       parentA: "11111111-1111-4111-8111-111111111111",
@@ -381,7 +416,8 @@ test("home view shows incubating and ready egg labels", async () => {
       hatchAt: Date.now() + 60_000
     });
     const incubating = renderHomeView({ menuIndex: 3, statusMessage: "" }, { columns: 90, rows: 30 });
-    assert.match(incubating.bodyLines.join("\n"), /View Egg/);
+    assert.match(incubating.bodyLines.join("\n"), /Breed slots: 0 ready \| 1 incubating \| 2 empty/);
+    assert.match(incubating.bodyLines.join("\n"), /▶ Breed Buddy/);
 
     setBreedEgg({
       parentA: "11111111-1111-4111-8111-111111111111",
@@ -395,7 +431,8 @@ test("home view shows incubating and ready egg labels", async () => {
       hatchAt: Date.now() - 1_000
     });
     const ready = renderHomeView({ menuIndex: 3, statusMessage: "" }, { columns: 90, rows: 30 });
-    assert.match(ready.bodyLines.join("\n"), /Hatch Egg/);
+    assert.match(ready.bodyLines.join("\n"), /Breed slots: 1 ready \| 0 incubating \| 2 empty/);
+    assert.match(ready.bodyLines.join("\n"), /▶ Breed Buddy/);
     clearBreedEgg();
   });
 });
@@ -461,6 +498,7 @@ test("collection rows and detail boxes use the rarity accent consistently", () =
 
   assertIncludes(epicCollection.bodyLines.join("\n"), ANSI.epic);
   assertIncludes(legendaryCollection.bodyLines.join("\n"), ANSI.legendary);
+  assert.match(stripAnsi(legendaryCollection.bodyLines.join("\n")), /dragon\s+legendary\s+501 ✦/);
   assertIncludes(uncommonCollection.bodyLines.join("\n"), ANSI.green);
   assertExcludes(commonCollection.bodyLines.join("\n"), ANSI.green);
 });

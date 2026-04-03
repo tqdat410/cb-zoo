@@ -21,12 +21,13 @@ If the embedded video does not render on GitHub, [watch it here](https://res.clo
 - Fast plain CLI flow with `--quick` and `--plain`
 - Interactive no-flag TTY launches the TUI, while explicit command flags and non-interactive runs stay on plain CLI-safe paths
 - Current buddy inspection with UUID-derived traits plus stored profile data
-- Unified local settings saved in `~/.cb-zoo/settings.json` for backup data, collection capacity, and pending roll state
+- Unified local settings saved in `~/.cb-zoo/settings.json` for backup data, collection capacity, pending roll state, and breed config/state
 - Shared roll-charge tracking in `~/.cb-zoo/settings.json`, with configurable regen interval and max-charge cap
 - Local collection saved in `~/.cb-zoo/collection.json`
 - Collection surfaces show current capacity, and saves stop at `maxBuddy` entries (`50` by default)
 - TUI rolls persist unsaved reveals so the "Resume Roll" action restores the pending buddy after backing out or restarting
-- TUI breeding lets you incubate an egg across restarts, then add, equip, or discard the hatched buddy from a dedicated hatch screen
+- TUI breeding uses configurable slot-based incubation stored in `settings.json`, so multiple eggs can survive restarts and hatch from a dedicated slot picker
+- HOME keeps a stable `Breed Buddy` action while a slot summary box shows ready, incubating, and empty breed slots
 - Backup and restore flow for the original Claude UUID
 - Zero runtime npm dependencies
 
@@ -83,7 +84,9 @@ cb-zoo --restore
 
 - The tool edits `oauthAccount.accountUuid` for rerolls and can also edit `companion.name` and `companion.personality` for the current stored buddy.
 - The original UUID is backed up inside `~/.cb-zoo/settings.json` on first run. Existing `~/.cb-zoo/backup.json` files migrate automatically on first settings load.
-- `settings.json` also stores `maxBuddy`, the current TUI `pendingBuddy`, and any active `breedEgg`; `maxBuddy` defaults to `50`.
+- `settings.json` also stores `maxBuddy`, the current TUI `pendingBuddy`, `breedConfig.slotCount`, `breedConfig.hatchTimes`, and persisted `breedSlots`; `maxBuddy` defaults to `50`.
+- Default breed config is `3` slots with rarity hatch timers of `10000`, `30000`, `60000`, `120000`, and `300000` ms for `common` through `legendary`, and users can override those values directly in `settings.json`.
+- Legacy single-slot `breedEgg` data migrates into `breedSlots[0]` on load, so older installs keep their in-progress egg.
 - `settings.json` also stores `rollConfig.maxCharges` and `rollConfig.regenMs`; defaults are `100` rolls and one refill every `300000` ms.
 - New rolls and rerolls spend one shared roll charge, while resuming an already pending reveal does not.
 - Plain CLI refunds the spent charge if local persistence fails before the reveal reaches its Apply/Reroll/Quit prompt, and the TUI only commits a charge when it can persist the pending reveal in `settings.json`.

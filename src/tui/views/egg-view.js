@@ -54,6 +54,10 @@ function renderAction(state, action, index, accent) {
   return selected ? `${ANSI.bold}${accent}[${action.label}]${ANSI.reset}` : action.label;
 }
 
+function buildSlotSubtitle(baseLabel, slotIndex) {
+  return slotIndex >= 0 ? `${baseLabel}  Slot ${slotIndex + 1}` : baseLabel;
+}
+
 export function renderEggView(state, terminal = {}) {
   const { innerWidth } = getScreenMetrics(terminal);
   const egg = state.breed.egg;
@@ -70,7 +74,7 @@ export function renderEggView(state, terminal = {}) {
 
   return {
     title: "EGG",
-    subtitle: "Incubating buddy",
+    subtitle: buildSlotSubtitle("Incubating buddy", state.breed.slotIndex),
     bodyLines: [
       ...centerBlockLines([heading], innerWidth),
       "",
@@ -98,7 +102,7 @@ export function renderHatchView(state, terminal = {}) {
 
   return {
     title: "HATCH",
-    subtitle: "Egg reveal",
+    subtitle: buildSlotSubtitle("Egg reveal", state.breed.slotIndex),
     bodyLines: [
       ...centerBlockLines([`${ANSI.bold}${accent}EGG HATCHED${ANSI.reset}`], innerWidth),
       "",

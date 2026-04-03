@@ -6,7 +6,7 @@ import { saveToCollection, loadCollection } from "../src/collection.js";
 import { createInitialState } from "../src/tui/state.js";
 import { createKeypressHandler } from "../src/tui/controller.js";
 import { handleBreedKeypress, openBreedFlow } from "../src/tui/breed-flow.js";
-import { clearBreedEgg, getBreedEgg, saveSettings, setBreedEgg, setPendingBuddy } from "../src/settings-manager.js";
+import { clearBreedEgg, getBreedEgg, getBreedSlots, saveSettings, setBreedEgg, setPendingBuddy } from "../src/settings-manager.js";
 import { withTempEnvironment } from "../test-support/with-temp-environment.js";
 
 async function withMockedRandom(values, run) {
@@ -20,6 +20,10 @@ async function withMockedRandom(values, run) {
   }
 }
 
+async function openSelectedBreedSlot(state) {
+  await handleBreedKeypress(state, { name: "enter" }, () => {});
+}
+
 test("openBreedFlow still allows breeding when a pending roll exists", async () => {
   await withTempEnvironment(async () => {
     saveToCollection(rollFrom("11111111-1111-4111-8111-111111111111"));
@@ -30,7 +34,8 @@ test("openBreedFlow still allows breeding when a pending roll exists", async () 
     await openBreedFlow(state, () => {});
 
     assert.equal(state.screen, "breed");
-    assert.equal(state.breed.phase, "select-a");
+    assert.equal(state.breed.phase, "slot-select");
+    assert.equal(state.breed.slots.length, 3);
   });
 });
 
@@ -43,9 +48,9 @@ test("openBreedFlow enters parent-a selection when two buddies exist", async () 
     await openBreedFlow(state, () => {});
 
     assert.equal(state.screen, "breed");
-    assert.equal(state.breed.phase, "select-a");
-    assert.equal(state.breed.options.length, 2);
-    assert.equal(state.statusMessage, "Choose the first parent.");
+    assert.equal(state.breed.phase, "slot-select");
+    assert.equal(state.breed.slots.length, 3);
+    assert.equal(state.statusMessage, "Choose a breed slot.");
   });
 });
 
@@ -59,7 +64,7 @@ test("openBreedFlow still allows breeding when collection is full", async () => 
     await openBreedFlow(state, () => {});
 
     assert.equal(state.screen, "breed");
-    assert.equal(state.breed.phase, "select-a");
+    assert.equal(state.breed.phase, "slot-select");
   });
 });
 
@@ -69,6 +74,9 @@ test("breed flow selects parents and creates an egg", async () => {
     saveToCollection(rollFrom("22222222-2222-4222-8222-222222222222"));
     const state = createInitialState();
     await openBreedFlow(state, () => {});
+
+    await openSelectedBreedSlot(state);
+    assert.equal(state.breed.phase, "select-a");
 
     await handleBreedKeypress(state, { name: "enter" }, () => {});
     assert.equal(state.breed.phase, "select-b");
@@ -90,6 +98,46 @@ test("breed flow selects parents and creates an egg", async () => {
   });
 });
 
+test("breed flow honors configured hatch times and stores the egg in a non-zero slot", async () => {
+  await withTempEnvironment(async () => {
+    saveSettings({
+      backup: null,
+      maxBuddy: 50,
+      pendingBuddy: null,
+      breedConfig: {
+        slotCount: 3,
+        hatchTimes: {
+          common: 1_234,
+          uncommon: 1_234,
+          rare: 1_234,
+          epic: 1_234,
+          legendary: 1_234
+        }
+      },
+      breedSlots: []
+    });
+    saveToCollection(rollFrom("11111111-1111-4111-8111-111111111111"));
+    saveToCollection(rollFrom("22222222-2222-4222-8222-222222222222"));
+    const state = createInitialState();
+
+    await openBreedFlow(state, () => {});
+    await handleBreedKeypress(state, { name: "down" }, () => {});
+    assert.equal(state.breed.selectIndex, 1);
+
+    await openSelectedBreedSlot(state);
+    await handleBreedKeypress(state, { name: "enter" }, () => {});
+    await handleBreedKeypress(state, { name: "enter" }, () => {});
+    await withMockedRandom([0.1, 0.1, 0.9, 0.9], async () => {
+      await handleBreedKeypress(state, { name: "enter" }, () => {});
+    });
+
+    const slots = getBreedSlots();
+    assert.equal(slots[0], null);
+    assert.ok(slots[1]);
+    assert.equal(slots[1].hatchAt - slots[1].createdAt, 1_234);
+  });
+});
+
 test("select-b escape returns to select-a before incubation", async () => {
   await withTempEnvironment(async () => {
     saveToCollection(rollFrom("11111111-1111-4111-8111-111111111111"));
@@ -97,13 +145,14 @@ test("select-b escape returns to select-a before incubation", async () => {
     const state = createInitialState();
 
     await openBreedFlow(state, () => {});
+    await openSelectedBreedSlot(state);
     await handleBreedKeypress(state, { name: "enter" }, () => {});
     assert.equal(state.breed.phase, "select-b");
 
     await handleBreedKeypress(state, { name: "escape" }, () => {});
 
     assert.equal(state.breed.phase, "select-a");
-    assert.equal(state.statusMessage, "Choose the first parent.");
+    assert.equal(state.statusMessage, "Choose the first parent for slot 1.");
   });
 });
 
@@ -114,13 +163,14 @@ test("select-b left arrow returns to select-a before incubation", async () => {
     const state = createInitialState();
 
     await openBreedFlow(state, () => {});
+    await openSelectedBreedSlot(state);
     await handleBreedKeypress(state, { name: "enter" }, () => {});
     assert.equal(state.breed.phase, "select-b");
 
     await handleBreedKeypress(state, { name: "left" }, () => {});
 
     assert.equal(state.breed.phase, "select-a");
-    assert.equal(state.statusMessage, "Choose the first parent.");
+    assert.equal(state.statusMessage, "Choose the first parent for slot 1.");
   });
 });
 
@@ -131,6 +181,7 @@ test("confirm screen escape returns to select-b before incubation", async () => 
     const state = createInitialState();
 
     await openBreedFlow(state, () => {});
+    await openSelectedBreedSlot(state);
     await handleBreedKeypress(state, { name: "enter" }, () => {});
     await handleBreedKeypress(state, { name: "enter" }, () => {});
     assert.equal(state.breed.phase, "confirm");
@@ -138,7 +189,7 @@ test("confirm screen escape returns to select-b before incubation", async () => 
     await handleBreedKeypress(state, { name: "escape" }, () => {});
 
     assert.equal(state.breed.phase, "select-b");
-    assert.equal(state.statusMessage, "Choose the second parent.");
+    assert.equal(state.statusMessage, "Choose the second parent for slot 1.");
   });
 });
 
@@ -149,6 +200,7 @@ test("confirm screen left arrow returns to select-b before incubation", async ()
     const state = createInitialState();
 
     await openBreedFlow(state, () => {});
+    await openSelectedBreedSlot(state);
     await handleBreedKeypress(state, { name: "enter" }, () => {});
     await handleBreedKeypress(state, { name: "enter" }, () => {});
     assert.equal(state.breed.phase, "confirm");
@@ -156,7 +208,7 @@ test("confirm screen left arrow returns to select-b before incubation", async ()
     await handleBreedKeypress(state, { name: "left" }, () => {});
 
     assert.equal(state.breed.phase, "select-b");
-    assert.equal(state.statusMessage, "Choose the second parent.");
+    assert.equal(state.statusMessage, "Choose the second parent for slot 1.");
   });
 });
 
@@ -183,6 +235,7 @@ test("ready egg can be added from the hatch screen", async () => {
       const state = createInitialState();
 
       await openBreedFlow(state, () => {});
+      await openSelectedBreedSlot(state);
 
       assert.equal(state.breed.phase, "hatch");
       assert.equal(state.breed.hatchedBuddy.uuid, targetUuid);
@@ -198,6 +251,54 @@ test("ready egg can be added from the hatch screen", async () => {
       crypto.randomUUID = originalRandomUuid;
       clearBreedEgg();
     }
+  });
+});
+
+test("ready egg in a non-zero slot can be resumed and added", async () => {
+  await withTempEnvironment(async () => {
+    const parentA = saveToCollection(rollFrom("11111111-1111-4111-8111-111111111111"));
+    const parentB = saveToCollection(rollFrom("22222222-2222-4222-8222-222222222222"));
+    const targetUuid = "123e4567-e89b-12d3-a456-426614174000";
+    const targetBuddy = rollFrom(targetUuid);
+    saveSettings({
+      backup: null,
+      maxBuddy: 50,
+      pendingBuddy: null,
+      breedConfig: {
+        slotCount: 3,
+        hatchTimes: {
+          common: 10_000,
+          uncommon: 30_000,
+          rare: 60_000,
+          epic: 120_000,
+          legendary: 300_000
+        }
+      },
+      breedSlots: [null, {
+        parentA: parentA.uuid,
+        parentB: parentB.uuid,
+        species: targetBuddy.species,
+        eye: targetBuddy.eye,
+        hat: targetBuddy.hat,
+        rarity: targetBuddy.rarity,
+        shiny: false,
+        hatchedUuid: targetUuid,
+        createdAt: Date.now() - 2_000,
+        hatchAt: Date.now() - 1_000
+      }]
+    });
+    const state = createInitialState();
+
+    await openBreedFlow(state, () => {});
+    assert.equal(state.breed.selectIndex, 1);
+    await openSelectedBreedSlot(state);
+    assert.equal(state.breed.phase, "hatch");
+
+    await handleBreedKeypress(state, { name: "text", value: "a" }, () => {});
+
+    assert.equal(state.screen, "home");
+    assert.equal(getBreedSlots()[1], null);
+    assert.equal(loadCollection().length, 3);
   });
 });
 
@@ -222,6 +323,7 @@ test("ready egg reuses its stored hatchedUuid when reopened", async () => {
     const state = createInitialState();
 
     await openBreedFlow(state, () => {});
+    await openSelectedBreedSlot(state);
     assert.equal(state.breed.phase, "hatch");
     assert.equal(state.breed.hatchedBuddy.uuid, targetUuid);
 
@@ -229,6 +331,7 @@ test("ready egg reuses its stored hatchedUuid when reopened", async () => {
     assert.equal(state.screen, "home");
 
     await openBreedFlow(state, () => {});
+    await openSelectedBreedSlot(state);
     assert.equal(state.breed.phase, "hatch");
     assert.equal(state.breed.hatchedBuddy.uuid, targetUuid);
 
@@ -254,11 +357,12 @@ test("openBreedFlow resumes an incubating egg", async () => {
     const state = createInitialState();
 
     await openBreedFlow(state, () => {});
+    await openSelectedBreedSlot(state);
 
     assert.equal(state.screen, "breed");
     assert.equal(state.breed.phase, "egg");
     assert.ok(state.breed.timer);
-    assert.equal(state.statusMessage, "Egg incubating.");
+    assert.equal(state.statusMessage, "Slot 1 incubating.");
 
     await handleBreedKeypress(state, { name: "escape" }, () => {});
     assert.equal(state.screen, "home");
@@ -287,6 +391,8 @@ test("existing egg takes priority over pending roll", async () => {
     await openBreedFlow(state, () => {});
 
     assert.equal(state.screen, "breed");
+    assert.equal(state.breed.phase, "slot-select");
+    await openSelectedBreedSlot(state);
     assert.equal(state.breed.phase, "egg");
     await handleBreedKeypress(state, { name: "escape" }, () => {});
     clearBreedEgg();
@@ -318,6 +424,7 @@ test("breed save failure keeps the egg recoverable", async () => {
       state.menuIndex = 3;
       const handler = createKeypressHandler(state, () => {});
 
+      await handler({ name: "enter" });
       await handler({ name: "enter" });
       assert.equal(state.breed.phase, "hatch");
 
@@ -356,6 +463,7 @@ test("full collection blocks add on the hatch screen but keeps the egg recoverab
     const state = createInitialState();
 
     await openBreedFlow(state, () => {});
+    await openSelectedBreedSlot(state);
     await handleBreedKeypress(state, { name: "text", value: "a" }, () => {});
 
     assert.equal(state.screen, "breed");
@@ -388,6 +496,7 @@ test("full collection blocks equip on the hatch screen but keeps the egg recover
     const state = createInitialState();
 
     await openBreedFlow(state, () => {});
+    await openSelectedBreedSlot(state);
     await handleBreedKeypress(state, { name: "enter" }, () => {});
 
     assert.equal(state.screen, "breed");
@@ -419,6 +528,7 @@ test("hatched buddy can be equipped from the hatch screen", async () => {
     const state = createInitialState();
 
     await openBreedFlow(state, () => {});
+    await openSelectedBreedSlot(state);
     await handleBreedKeypress(state, { name: "text", value: "e" }, () => {});
 
     assert.equal(state.screen, "home");
@@ -448,6 +558,7 @@ test("delete discards the hatched buddy and clears the egg", async () => {
     const state = createInitialState();
 
     await openBreedFlow(state, () => {});
+    await openSelectedBreedSlot(state);
     await handleBreedKeypress(state, { name: "text", value: "d" }, () => {});
 
     assert.equal(state.screen, "home");
@@ -476,6 +587,7 @@ test("hatch actions support left-right navigation", async () => {
     const state = createInitialState();
 
     await openBreedFlow(state, () => {});
+    await openSelectedBreedSlot(state);
     assert.equal(state.breed.hatchActionIndex, 0);
 
     await handleBreedKeypress(state, { name: "right" }, () => {});
@@ -509,6 +621,7 @@ test("controller quit clears the incubating egg timer", async () => {
     const handler = createKeypressHandler(state, () => {});
 
     await handler({ name: "enter" });
+    await handler({ name: "enter" });
     assert.ok(state.breed.timer);
 
     await handler({ name: "text", value: "q" });
@@ -527,6 +640,7 @@ test("breed flow refuses to pair duplicate UUID entries", async () => {
     const state = createInitialState();
 
     await openBreedFlow(state, () => {});
+    await openSelectedBreedSlot(state);
     await handleBreedKeypress(state, { name: "enter" }, () => {});
 
     assert.equal(state.breed.phase, "select-a");

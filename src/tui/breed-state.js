@@ -7,6 +7,8 @@ export const BREED_HATCH_ACTIONS = [
 export function createEmptyBreedState() {
   return {
     phase: "idle",
+    slots: [],
+    slotIndex: 0,
     entries: [],
     options: [],
     selectIndex: 0,

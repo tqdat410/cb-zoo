@@ -9,7 +9,7 @@ import { renderRollView } from "./views/roll-view.js";
 import { renderCurrentView } from "./views/current-view.js";
 import { renderCollectionView } from "./views/collection-view.js";
 import { renderEditView } from "./views/edit-view.js";
-import { renderBreedConfirm, renderBreedSelectA, renderBreedSelectB } from "./views/breed-view.js";
+import { renderBreedConfirm, renderBreedSelectA, renderBreedSelectB, renderBreedSlotSelect } from "./views/breed-view.js";
 import { renderEggView, renderHatchView } from "./views/egg-view.js";
 import { createIdleRollState } from "./roll-config.js";
 import { ANSI, getRarityAccent } from "./render-helpers.js";
@@ -60,6 +60,9 @@ export function renderScreen(state, terminal = {}) {
     return attachTopRightMeta(renderEditView(state, terminal));
   }
   if (state.screen === "breed") {
+    if (state.breed.phase === "slot-select") {
+      return attachTopRightMeta(renderBreedSlotSelect(state, terminal));
+    }
     if (state.breed.phase === "select-a") {
       return attachTopRightMeta(renderBreedSelectA(state, terminal));
     }
