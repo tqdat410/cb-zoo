@@ -2,21 +2,18 @@
 
 `cb-zoo` is a zero-dependency Node.js CLI and terminal UI for rolling, collecting, and applying Claude Code buddies.
 
-It is a small `Claude Code` companion manager with a retro TUI, gacha-style roll flow, local collection tracking, and backup/restore support for Claude UUID state.
-
-Keywords: `Claude Code`, `buddy`, `companion`, `terminal UI`, `TUI`, `CLI`, `gacha`, `Node.js`, `UUID`, `collection`.
+It is a `Claude Code` companion manager with a retro terminal UI, gacha-style roll flow, local collection tracking, and backup/restore support for Claude UUID state.
 
 ## Demo
 
-- [Watch the demo video](./media/2026-04-03%2013-33-27.mp4)
+<video src="https://res.cloudinary.com/do6szo7zy/video/upload/v1775198661/2026-04-03_13-33-27_dc1bmv.mp4" controls muted playsinline width="960"></video>
 
-### Roll Screen
+If the embedded video does not render on GitHub, [watch it here](https://res.cloudinary.com/do6szo7zy/video/upload/v1775198661/2026-04-03_13-33-27_dc1bmv.mp4).
 
-![cb-zoo reroll screen](./media/screenshot-reroll.png)
-
-### Collection Screen
-
-![cb-zoo collection screen](./media/screenshot-collection.png)
+<p align="center">
+  <img src="./media/screenshot-reroll.png" alt="cb-zoo reroll screen" width="48%" />
+  <img src="./media/screenshot-collection.png" alt="cb-zoo collection screen" width="48%" />
+</p>
 
 ## Features
 
