@@ -7,6 +7,8 @@ import { formatCompanionSummary, getCurrentCompanion } from "./companion-state.j
 import { animateGacha, quickReveal, showBuddyCard } from "./gacha-animation.js";
 import { displayCollection, loadCollection, saveToCollection } from "./collection.js";
 import { shouldLaunchTui } from "./launch-mode.js";
+import { consumeRollCharge, formatRollCountdown, getRollChargeSnapshot } from "./roll-charge-manager.js";
+import { setRollCharges } from "./settings-manager.js";
 import { launchTuiApp } from "./tui/app.js";
 import { applyUuid, backupUuid, getCurrentUuid, hasBackup, restoreUuid, updateCompanionMetadata } from "./uuid-manager.js";
 
@@ -102,42 +104,69 @@ async function ensurePromptInputAvailable() {
 async function gachaLoop(isQuick) {
   await ensurePromptInputAvailable();
   loadCollection();
-  if (!hasBackup()) {
-    const backup = backupUuid();
-    process.stdout.write(`Backed up current UUID to ${backup.filePath}\n`);
-  }
 
   while (true) {
-    const buddy = rollFrom(randomUUID());
-    if (isQuick) {
-      quickReveal(buddy);
-    } else {
-      await animateGacha(buddy);
+    const chargeSnapshot = getRollChargeSnapshot();
+    if (chargeSnapshot.available <= 0) {
+      throw new Error(`No rolls left. Next +1 in ${formatRollCountdown(chargeSnapshot.msUntilNext)}.`);
     }
-    let collectionFull = false;
+    if (!hasBackup()) {
+      const backup = backupUuid();
+      process.stdout.write(`Backed up current UUID to ${backup.filePath}\n`);
+    }
+    consumeRollCharge();
+    let chargeCommitted = false;
     try {
-      saveToCollection(buddy);
+      const buddy = rollFrom(randomUUID());
+      if (isQuick) {
+        quickReveal(buddy);
+      } else {
+        await animateGacha(buddy);
+      }
+      let collectionFull = false;
+      try {
+        saveToCollection(buddy);
+        chargeCommitted = true;
+      } catch (error) {
+        if (!error.message.startsWith("Collection full")) {
+          throw error;
+        }
+        collectionFull = true;
+        chargeCommitted = true;
+        process.stdout.write(`${error.message}\n`);
+      }
+      const rerollSnapshot = getRollChargeSnapshot();
+      const canReroll = rerollSnapshot.available > 0;
+      if (!canReroll) {
+        process.stdout.write(`No rerolls left. Next +1 in ${formatRollCountdown(rerollSnapshot.msUntilNext)}.\n`);
+      }
+      while (true) {
+        const question = collectionFull
+          ? canReroll ? "[R]eroll  [Q]uit: " : "[Q]uit: "
+          : canReroll ? "[A]pply  [R]eroll  [Q]uit: " : "[A]pply  [Q]uit: ";
+        const answer = (await prompt(question)).toLowerCase();
+        if (!collectionFull && (answer === "a" || answer === "apply")) {
+          const result = applyUuid(buddy.uuid);
+          process.stdout.write(`Applied UUID ${result.uuid}\n${result.warning}\n`);
+          return;
+        }
+        if (answer === "q" || answer === "quit") {
+          return;
+        }
+        if (canReroll && (answer === "r" || answer === "reroll")) {
+          break;
+        }
+        process.stdout.write(
+          collectionFull
+            ? canReroll ? "Please choose R or Q.\n" : "Please choose Q.\n"
+            : canReroll ? "Please choose A, R, or Q.\n" : "Please choose A or Q.\n"
+        );
+      }
     } catch (error) {
-      if (!error.message.startsWith("Collection full")) {
-        throw error;
+      if (!chargeCommitted) {
+        setRollCharges({ available: chargeSnapshot.available, updatedAt: chargeSnapshot.updatedAt });
       }
-      collectionFull = true;
-      process.stdout.write(`${error.message}\n`);
-    }
-    while (true) {
-      const answer = (await prompt(collectionFull ? "[R]eroll  [Q]uit: " : "[A]pply  [R]eroll  [Q]uit: ")).toLowerCase();
-      if (!collectionFull && (answer === "a" || answer === "apply")) {
-        const result = applyUuid(buddy.uuid);
-        process.stdout.write(`Applied UUID ${result.uuid}\n${result.warning}\n`);
-        return;
-      }
-      if (answer === "q" || answer === "quit") {
-        return;
-      }
-      if (answer === "r" || answer === "reroll") {
-        break;
-      }
-      process.stdout.write(collectionFull ? "Please choose R or Q.\n" : "Please choose A, R, or Q.\n");
+      throw error;
     }
   }
 }

@@ -1,9 +1,11 @@
 import { deleteCollectionEntry, resolveCollectionEntry } from "../collection.js";
-import { applyUuid, backupUuid, hasBackup, resetCompanionProfile, restoreUuid, updateCompanionMetadata } from "../uuid-manager.js";
+import { applyUuid, backupUuid, hasBackup, resetCompanionProfile, updateCompanionMetadata } from "../uuid-manager.js";
 import { getHomeMenuItems } from "./views/home-view.js";
-import { applyRollAction, runRollSequence } from "./roll-flow.js";
+import { applyRollAction } from "./roll-flow.js";
+import { handleHomeAction } from "./home-actions.js";
+import { handleBreedKeypress, stopBreedTimer } from "./breed-flow.js";
 import { getRollActionIndex, ROLL_ACTIONS } from "./roll-config.js";
-import { loadPendingRollState, openEdit, resetCollectionPrompt, syncCollection, syncCurrent } from "./state.js";
+import { openEdit, resetCollectionPrompt, syncCollection, syncCurrent } from "./state.js";
 
 function isShortcut(key, value) {
   return key.name === "text" && key.value.toLowerCase() === value;
@@ -20,51 +22,6 @@ function getSelectedCollectionEntry(state) {
   return state.collectionEntries[state.collectionIndex] || null;
 }
 
-async function handleHomeAction(state, writeScreen) {
-  const action = getHomeMenuItems()[state.menuIndex]?.id;
-  if (action === "quit") {
-    state.shouldExit = true;
-    return;
-  }
-  if (action === "roll") {
-    const pendingRoll = loadPendingRollState();
-    if (pendingRoll) {
-      state.screen = "roll";
-      state.roll = pendingRoll;
-      state.statusMessage = "Resuming pending buddy.";
-      return;
-    }
-    await runRollSequence(state, writeScreen);
-    return;
-  }
-  if (action === "current") {
-    syncCurrent(state);
-    state.screen = "current";
-    state.statusMessage = "Current buddy loaded.";
-    return;
-  }
-  if (action === "collection") {
-    syncCollection(state);
-    resetCollectionPrompt(state);
-    state.screen = "collection";
-    state.statusMessage = "Browsing collection.";
-    return;
-  }
-  if (action === "edit") {
-    openEdit(state);
-    return;
-  }
-  if (action === "backup") {
-    const result = backupUuid();
-    state.statusMessage = result.created ? "UUID backup created." : "Backup already exists.";
-    return;
-  }
-  if (action === "restore") {
-    const result = restoreUuid();
-    state.statusMessage = `Restored UUID ${result.uuid}.`;
-  }
-}
-
 export function createKeypressHandler(state, writeScreen) {
   let reading = false;
 
@@ -75,10 +32,12 @@ export function createKeypressHandler(state, writeScreen) {
     reading = true;
     try {
       if (key.name === "quit") {
+        stopBreedTimer(state);
         state.shouldExit = true;
         return;
       }
       if (state.screen !== "edit" && isShortcut(key, "q")) {
+        stopBreedTimer(state);
         state.shouldExit = true;
         return;
       }
@@ -90,6 +49,8 @@ export function createKeypressHandler(state, writeScreen) {
         } else if (key.name === "enter") {
           await handleHomeAction(state, writeScreen);
         }
+      } else if (state.screen === "breed") {
+        await handleBreedKeypress(state, key, writeScreen);
       } else if (state.screen === "roll" && state.roll.phase === "revealed") {
         const shortcutIndex = getRollShortcutIndex(key);
         if (key.name === "left" || isShortcut(key, "h")) {

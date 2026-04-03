@@ -2,7 +2,7 @@
 
 ## Product
 
-`cb-zoo` is a zero-dependency Node.js terminal app that rolls Claude Code buddies from random UUIDs, presents them through a centered cb-zoo TUI or explicit plain CLI flows, stores local settings in `~/.cb-zoo/settings.json`, stores the collection in `~/.cb-zoo/collection.json`, and optionally applies the rolled UUID back into Claude Code.
+`cb-zoo` is a zero-dependency Node.js terminal app that rolls Claude Code buddies from random UUIDs, presents them through a centered cb-zoo TUI or explicit plain CLI flows, stores local settings in `~/.cb-zoo/settings.json`, stores the collection in `~/.cb-zoo/collection.json`, supports a TUI-only breed/egg loop for saved buddies, and optionally applies the rolled UUID back into Claude Code.
 
 ## Goals
 
@@ -11,6 +11,8 @@
 - Keep installation friction low by avoiding external dependencies
 - Protect the user's original Claude UUID with backup and restore commands stored in unified local settings
 - Let users resume an unsaved TUI roll instead of losing it on back-out or restart
+- Let users incubate a bred buddy across TUI exits or app restarts without losing the egg
+- Track parent lineage for bred buddies inside local collection storage
 
 ## Functional Requirements
 
@@ -26,6 +28,14 @@
 - Enforce collection capacity from `settings.maxBuddy`, defaulting to `50`
 - Show collection capacity as `current/maxBuddy` in collection views
 - Persist the current revealed TUI roll as `pendingBuddy`, keep it on Back or relaunch, and clear it after successful Add or Equip
+- Expose a TUI-only breed action that renders as `Breed Buddy`, `View Egg`, or `Hatch Egg` depending on persisted egg state
+- Start breeding whenever at least two saved collection entries exist, even if a pending roll or a full collection is already present
+- Require the second parent to resolve to a different UUID than the first parent
+- Preview offspring traits before incubation using a static species table, parent-inherited cosmetics, floor-averaged rarity with a capped one-tier upgrade chance, forced `hat: "none"` on common offspring, and a 1% shiny chance
+- Persist incubating eggs as `settings.breedEgg` with parent UUIDs, target traits, `createdAt`, and `hatchAt`
+- Resume incubating eggs after leaving the breed screen or restarting the app, and hatch ready eggs into a stable UUID-backed buddy via persisted `hatchedUuid`
+- Offer Add, Equip, and Delete actions after hatch time finishes, with Add and Equip still blocked by `maxBuddy` when the collection is full
+- Save bred buddies back into the collection with optional `bredFrom` lineage metadata, and clear `breedEgg` only after a successful Add, Equip, or Delete path
 - Let the TUI Collection view apply the selected buddy UUID without removing the saved entry, or delete the selected buddy after explicit confirmation
 - Reject malformed UUID values and invalid Claude config shapes before config writes
 - Reject companion metadata edits when Claude state has no valid stored companion yet or when trimmed edit values are blank
@@ -45,9 +55,10 @@
 - No token or config leakage in logs
 - Restore terminal cursor/state cleanly after TUI exit or failure
 - Show a minimum-size warning instead of the full TUI when the terminal is smaller than `64x24`
+- Breed incubation timing must stay deterministic per rarity: `10s` common, `30s` uncommon, `60s` rare, `120s` epic, `300s` legendary
 - Atomic JSON writes for config, settings, and collection files
 - BOM-tolerant JSON parsing for persisted state files
-- Fail closed on corrupt settings, backup, or collection data, while dropping invalid pending roll payloads instead of resuming them
+- Fail closed on corrupt settings, backup, or collection data, while dropping invalid pending roll or invalid breed-egg payloads instead of resuming them
 - Prevent cb-zoo state files from being redirected into protected Claude state directories such as `.claude` or Windows `%APPDATA%\\Claude` through env overrides
 
 ## Risks
@@ -66,4 +77,7 @@
 - TUI layout refuses sub-`64x24` terminals with a minimum-size warning instead of rendering clipped chrome
 - UUID backup/apply/restore flow preserves unrelated config fields and tolerates a UTF-8 BOM in Claude config
 - Quick roll rejects corrupt backup or collection files before backup, reveal, or local mutation
+- Breed table tests prove symmetric parent lookup coverage and balanced offspring distribution across species
+- Settings tests cover `breedEgg` round-trips plus dropping invalid persisted egg payloads
+- TUI breed tests cover parent selection, egg persistence/resume, stable ready-egg reopening, hatch Add/Equip/Delete, lineage persistence, duplicate-parent rejection, and full-collection recovery
 - Sprite rendering keeps a 5-line contract for stable card layout

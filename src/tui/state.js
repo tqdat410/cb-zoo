@@ -3,13 +3,28 @@ import { hasCollectionEntryForBuddy, loadCollection } from "../collection.js";
 import { getMaxBuddy, getPendingBuddy } from "../settings-manager.js";
 import { getCurrentUuid } from "../uuid-manager.js";
 import { rollFrom } from "../buddy-engine.js";
+import { createEmptyBreedState } from "./breed-state.js";
 import { renderHomeView } from "./views/home-view.js";
 import { renderRollView } from "./views/roll-view.js";
 import { renderCurrentView } from "./views/current-view.js";
 import { renderCollectionView } from "./views/collection-view.js";
 import { renderEditView } from "./views/edit-view.js";
+import { renderBreedConfirm, renderBreedSelectA, renderBreedSelectB } from "./views/breed-view.js";
+import { renderEggView, renderHatchView } from "./views/egg-view.js";
 import { createIdleRollState } from "./roll-config.js";
-import { getRarityAccent } from "./render-helpers.js";
+import { ANSI, getRarityAccent } from "./render-helpers.js";
+import { formatRollChargeSummary, getRollChargeSnapshot } from "../roll-charge-manager.js";
+
+function attachTopRightMeta(view) {
+  if (view.topRight) {
+    return view;
+  }
+  const snapshot = getRollChargeSnapshot();
+  return {
+    ...view,
+    topRight: `${ANSI.dim}${formatRollChargeSummary(snapshot)}${ANSI.reset}`
+  };
+}
 
 export function createInitialState() {
   return {
@@ -24,24 +39,40 @@ export function createInitialState() {
     collectionPrompt: { mode: "browse" },
     currentCompanion: null,
     currentBuddy: null,
-    edit: { activeField: "name", name: "", personality: "", error: "", confirmReset: false }
+    edit: { activeField: "name", name: "", personality: "", error: "", confirmReset: false },
+    breed: createEmptyBreedState()
   };
 }
 
 export function renderScreen(state, terminal = {}) {
   if (state.screen === "roll") {
-    return renderRollView(state, terminal);
+    return attachTopRightMeta(renderRollView(state, terminal));
   }
   if (state.screen === "current") {
-    return renderCurrentView(state, terminal);
+    return attachTopRightMeta(renderCurrentView(state, terminal));
   }
   if (state.screen === "collection") {
-    return renderCollectionView(state, terminal);
+    return attachTopRightMeta(renderCollectionView(state, terminal));
   }
   if (state.screen === "edit") {
-    return renderEditView(state, terminal);
+    return attachTopRightMeta(renderEditView(state, terminal));
   }
-  return renderHomeView(state, terminal);
+  if (state.screen === "breed") {
+    if (state.breed.phase === "select-a") {
+      return attachTopRightMeta(renderBreedSelectA(state, terminal));
+    }
+    if (state.breed.phase === "select-b") {
+      return attachTopRightMeta(renderBreedSelectB(state, terminal));
+    }
+    if (state.breed.phase === "confirm") {
+      return attachTopRightMeta(renderBreedConfirm(state, terminal));
+    }
+    if (state.breed.phase === "hatch") {
+      return attachTopRightMeta(renderHatchView(state, terminal));
+    }
+    return attachTopRightMeta(renderEggView(state, terminal));
+  }
+  return attachTopRightMeta(renderHomeView(state, terminal));
 }
 
 export function syncCurrent(state) {

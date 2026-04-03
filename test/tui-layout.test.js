@@ -25,8 +25,7 @@ test("renderHandheldScreen includes shell chrome and clips overflow body lines",
       title: "HOME",
       subtitle: "Roll, inspect, collect, and apply",
       bodyLines: Array.from({ length: 40 }, (_, index) => `Line ${index + 1}`),
-      footer: "Footer",
-      status: "Ready."
+      footer: "Footer"
     },
     { columns: 72, rows: 24 }
   );
@@ -34,7 +33,6 @@ test("renderHandheldScreen includes shell chrome and clips overflow body lines",
   assert.match(screen, /CB-ZOO \/\/ BUDDY CONSOLE/);
   assert.match(screen, /HOME/);
   assert.match(screen, /Footer/);
-  assert.match(screen, /Ready\./);
   assert.match(screen, /\.\.\./);
   assert.equal(screen.includes(ANSI.bgBlue), false);
 });
@@ -51,7 +49,7 @@ test("renderHandheldScreen centers the shell on wide terminals", () => {
   assert.match(screen, /\x1b\[H {23}╭/);
 });
 
-test("renderHandheldScreen falls back to default footer and status fields", () => {
+test("renderHandheldScreen falls back to the default footer", () => {
   const screen = renderHandheldScreen(
     {
       title: "ROLL",
@@ -61,6 +59,21 @@ test("renderHandheldScreen falls back to default footer and status fields", () =
   );
 
   assert.match(screen, /Arrows move  Enter confirm  Esc back  Q quit/);
+});
+
+test("renderHandheldScreen places top-right metadata in the shell header", () => {
+  const screen = renderHandheldScreen(
+    {
+      title: "HOME",
+      topRight: "Rerolls 3/5  Gen 04:59",
+      bodyLines: ["One line"]
+    },
+    { columns: 72, rows: 24 }
+  );
+
+  const topLine = getVisibleLineContaining(screen, "CB-ZOO // BUDDY CONSOLE");
+  assert.match(topLine, /CB-ZOO \/\/ BUDDY CONSOLE/);
+  assert.match(topLine, /Rerolls 3\/5  Gen 04:59/);
 });
 
 test("renderHandheldScreen shows a minimum-size warning on tiny terminals", () => {

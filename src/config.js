@@ -49,6 +49,20 @@ export const STARS = {
   legendary: "★★★★★"
 };
 export const RARITY_ORDER = Object.fromEntries(RARITIES.map((rarity, index) => [rarity, index]));
+export const EGG_HATCH_TIMES = {
+  common: 10_000,
+  uncommon: 30_000,
+  rare: 60_000,
+  epic: 120_000,
+  legendary: 300_000
+};
+export const EGG_COLORS = {
+  common: "white",
+  uncommon: "green",
+  rare: "blue",
+  epic: "purple",
+  legendary: "gold"
+};
 
 function resolveHomeDir() {
   return process.env.CB_ZOO_HOME || homedir();

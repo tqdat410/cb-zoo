@@ -27,6 +27,8 @@ export async function launchTuiApp() {
   const state = createInitialState();
   const dispatch = createKeypressHandler(state, writeScreen);
   let stopReading = () => {};
+  let refreshInterval = null;
+  let exitInterval = null;
 
   enterAlternateScreen();
   try {
@@ -35,15 +37,27 @@ export async function launchTuiApp() {
       void dispatch(key);
     });
     await new Promise((resolve) => {
-      const interval = setInterval(() => {
+      refreshInterval = setInterval(() => {
+        if (!state.shouldExit) {
+          writeScreen(state);
+        }
+      }, 1000);
+      exitInterval = setInterval(() => {
         if (state.shouldExit) {
-          clearInterval(interval);
+          clearInterval(refreshInterval);
+          clearInterval(exitInterval);
           resolve();
         }
       }, 25);
     });
   } finally {
     stopReading();
+    if (refreshInterval) {
+      clearInterval(refreshInterval);
+    }
+    if (exitInterval) {
+      clearInterval(exitInterval);
+    }
     leaveAlternateScreen();
   }
 }

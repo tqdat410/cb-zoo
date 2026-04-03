@@ -365,6 +365,36 @@ test("backup rejects an existing file without a valid UUID", () => {
   });
 });
 
+test("backup still works when unrelated roll config values are invalid", () => {
+  withTempEnvironment(({ dataDir }) => {
+    writeFileSync(
+      join(dataDir, "settings.json"),
+      JSON.stringify(
+        {
+          backup: null,
+          maxBuddy: 50,
+          rollConfig: { maxCharges: -1, regenMs: 0 },
+          rollCharges: { available: 3, updatedAt: Date.now() },
+          pendingBuddy: null,
+          breedEgg: null
+        },
+        null,
+        2
+      ),
+      "utf8"
+    );
+
+    const result = spawnSync(process.execPath, ["./src/cli.js", "--backup"], {
+      cwd: process.cwd(),
+      encoding: "utf8",
+      env: { ...process.env }
+    });
+
+    assert.equal(result.status, 0);
+    assert.match(result.stdout, /Backed up current UUID|Backup already exists/);
+  });
+});
+
 test("backup rejects an existing temporary file path", () => {
   withTempEnvironment(({ dataDir }) => {
     const tempFile = join(dataDir, "settings.json.tmp");
@@ -478,6 +508,40 @@ test("quick roll still works when Claude uses live companion state", () => {
   });
 });
 
+test("quick roll blocks cleanly when no roll charges remain", () => {
+  withTempEnvironment(({ dataDir }) => {
+    writeFileSync(
+      join(dataDir, "settings.json"),
+      JSON.stringify(
+        {
+          backup: null,
+          maxBuddy: 50,
+          rollConfig: { maxCharges: 5, regenMs: 300000 },
+          rollCharges: { available: 0, updatedAt: Date.now() },
+          pendingBuddy: null,
+          breedEgg: null
+        },
+        null,
+        2
+      ),
+      "utf8"
+    );
+
+    const result = spawnSync(process.execPath, ["./src/cli.js", "--quick"], {
+      cwd: process.cwd(),
+      encoding: "utf8",
+      input: "q\n",
+      env: { ...process.env }
+    });
+
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /No rolls left\. Next \+1 in 05:00\./);
+    assert.equal(existsSync(join(dataDir, "collection.json")), false);
+    assert.equal(result.stdout.includes("Backed up current UUID"), false);
+    assert.equal(result.stdout.includes("[A]pply"), false);
+  });
+});
+
 test("quick roll keeps reroll and quit available when collection is full", () => {
   withTempEnvironment(({ dataDir }) => {
     writeFileSync(
@@ -506,6 +570,39 @@ test("quick roll keeps reroll and quit available when collection is full", () =>
     assert.match(result.stdout, /Collection full \(1\/1\)\. Delete a buddy first\./);
     assert.match(result.stdout, /\[R\]eroll  \[Q\]uit:/);
     assert.equal(loadCollection().length, 1);
+  });
+});
+
+test("quick roll refunds the spent charge when collection persistence fails before the prompt", () => {
+  withTempEnvironment(({ dataDir }) => {
+    writeFileSync(
+      join(dataDir, "settings.json"),
+      JSON.stringify(
+        {
+          backup: null,
+          maxBuddy: 50,
+          rollConfig: { maxCharges: 1, regenMs: 300000 },
+          rollCharges: { available: 1, updatedAt: Date.now() },
+          pendingBuddy: null,
+          breedEgg: null
+        },
+        null,
+        2
+      ),
+      "utf8"
+    );
+    writeFileSync(join(dataDir, "collection.json.tmp"), "placeholder", "utf8");
+
+    const result = spawnSync(process.execPath, ["./src/cli.js", "--quick"], {
+      cwd: process.cwd(),
+      encoding: "utf8",
+      input: "q\n",
+      env: { ...process.env }
+    });
+
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /existing temporary file/i);
+    assert.equal(JSON.parse(readFileSync(join(dataDir, "settings.json"), "utf8")).rollCharges.available, 1);
   });
 });
 
@@ -715,7 +812,7 @@ test("FORCE_COLOR=0 disables ANSI support", () => {
   assert.equal(result.stdout.trim(), "false");
 });
 
-test("corrupt settings backup blocks quick apply before touching Claude config", () => {
+test("corrupt settings file blocks quick roll before touching Claude config", () => {
   withTempEnvironment(({ configFile, dataDir }) => {
     writeFileSync(join(dataDir, "settings.json"), "{not-json", "utf8");
     const result = spawnSync(process.execPath, ["./src/cli.js", "--quick"], {
@@ -725,7 +822,7 @@ test("corrupt settings backup blocks quick apply before touching Claude config",
       env: { ...process.env }
     });
     assert.equal(result.status, 1);
-    assert.match(result.stderr, /backup exists but is invalid/i);
+    assert.match(result.stderr, /settings exists but is invalid/i);
     assert.equal(JSON.parse(readFileSync(configFile, "utf8")).oauthAccount.accountUuid, "00000000-0000-4000-8000-000000000000");
     assert.equal(loadCollection().length, 0);
   });

@@ -2,6 +2,23 @@
 
 ## 2026-04-03
 
+- Added configurable roll charges in `~/.cb-zoo/settings.json` via `rollConfig.maxCharges` and `rollConfig.regenMs`, with defaults of `100` charges and `300000` ms per refill
+- Added persisted `rollCharges.available` and `rollCharges.updatedAt` so cb-zoo lazily regenerates one roll at a time without a background worker
+- Gated both plain/quick CLI rolls and TUI new-roll / reroll paths behind the shared charge counter, while keeping `Resume Roll` free when a pending reveal already exists
+- Refunded plain-CLI charges when collection persistence fails before the reveal prompt, while keeping the TUI charge write fail-closed behind the atomic `pendingBuddy` settings save
+- Moved the roll charge summary into the shell top-right corner, and added a one-second TUI redraw tick so the shared refill countdown keeps running live like egg hatch timers
+- Made the reveal screen disable the reroll action when no charge is available yet
+- Added a TUI-only `Breed Buddy` flow with collection-style parent selection, a confirm screen after the second pick, and hatch-save steps
+- Moved the locked-parent summary out of the breed main body and into the top bar with a visible `← Back` affordance so the picker no longer overflows on dense content
+- Added rarity-colored parent summaries to the breed top bar so parent A / parent B metadata matches the collection accent palette during selection and confirm
+- Simplified breed confirm so it now shows only compact `parent A × parent B` cards before incubation instead of an offspring result preview
+- Removed the dedicated bottom status row from the TUI shell so the bottom area now only shows screen-specific key hints
+- Synced the hatch screen back to the shared rarity-accented buddy card renderer so hatched buddy art, text, and stat bars keep the same color treatment as roll/current views
+- Persisted incubating eggs in `~/.cb-zoo/settings.json` as `breedEgg`, with the home menu switching between `Breed Buddy`, `View Egg`, and `Hatch Egg`
+- Saved bred buddies into `~/.cb-zoo/collection.json` with optional `bredFrom` lineage metadata
+- Let breeding open even when the collection is at capacity, while keeping `maxBuddy` enforcement on hatched-buddy Add and Equip
+- Replaced one-step hatch save with explicit hatch actions for Add, Equip, and Delete, and persisted `breedEgg.hatchedUuid` so ready eggs reopen as the same buddy
+- Added regression coverage for breed-table symmetry/balance, egg persistence, incubating egg resume, and recoverable hatch-save failures
 - Replaced standalone `~/.cb-zoo/backup.json` storage with unified `~/.cb-zoo/settings.json`, with one-time legacy backup migration on first settings load
 - Added `maxBuddy` capacity handling with a default of `50`, collection count/capacity display, and full-collection enforcement during roll Add and Equip
 - Persisted rolled-but-unsaved TUI buddies as `pendingBuddy` so Back and app relaunch can resume the reveal until Add or Equip clears it

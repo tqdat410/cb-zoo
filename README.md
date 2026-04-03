@@ -19,11 +19,14 @@ If the embedded video does not render on GitHub, [watch it here](https://res.clo
 
 - Default interactive terminal UI for rolling and browsing buddies
 - Fast plain CLI flow with `--quick` and `--plain`
+- Interactive no-flag TTY launches the TUI, while explicit command flags and non-interactive runs stay on plain CLI-safe paths
 - Current buddy inspection with UUID-derived traits plus stored profile data
 - Unified local settings saved in `~/.cb-zoo/settings.json` for backup data, collection capacity, and pending roll state
+- Shared roll-charge tracking in `~/.cb-zoo/settings.json`, with configurable regen interval and max-charge cap
 - Local collection saved in `~/.cb-zoo/collection.json`
 - Collection surfaces show current capacity, and saves stop at `maxBuddy` entries (`50` by default)
 - TUI rolls persist unsaved reveals so the "Resume Roll" action restores the pending buddy after backing out or restarting
+- TUI breeding lets you incubate an egg across restarts, then add, equip, or discard the hatched buddy from a dedicated hatch screen
 - Backup and restore flow for the original Claude UUID
 - Zero runtime npm dependencies
 
@@ -80,8 +83,12 @@ cb-zoo --restore
 
 - The tool edits `oauthAccount.accountUuid` for rerolls and can also edit `companion.name` and `companion.personality` for the current stored buddy.
 - The original UUID is backed up inside `~/.cb-zoo/settings.json` on first run. Existing `~/.cb-zoo/backup.json` files migrate automatically on first settings load.
-- `settings.json` also stores `maxBuddy` and the current TUI `pendingBuddy`; `maxBuddy` defaults to `50`.
+- `settings.json` also stores `maxBuddy`, the current TUI `pendingBuddy`, and any active `breedEgg`; `maxBuddy` defaults to `50`.
+- `settings.json` also stores `rollConfig.maxCharges` and `rollConfig.regenMs`; defaults are `100` rolls and one refill every `300000` ms.
+- New rolls and rerolls spend one shared roll charge, while resuming an already pending reveal does not.
+- Plain CLI refunds the spent charge if local persistence fails before the reveal reaches its Apply/Reroll/Quit prompt, and the TUI only commits a charge when it can persist the pending reveal in `settings.json`.
 - When the collection is full, TUI Add/Equip keeps the pending buddy in place instead of discarding it.
+- Breeding can still start while the collection is full, but hatched-buddy Add/Equip still respect `maxBuddy` until you free a slot or discard the hatch.
 - Claude Code does not document this file schema as a stable public API, so future releases may change it.
 - Re-authenticating Claude Code can overwrite the rerolled UUID, so keep the backup.
 

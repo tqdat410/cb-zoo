@@ -6,10 +6,14 @@ import { renderCollectionView } from "../src/tui/views/collection-view.js";
 import { renderCurrentView } from "../src/tui/views/current-view.js";
 import { renderEditView } from "../src/tui/views/edit-view.js";
 import { renderRollView } from "../src/tui/views/roll-view.js";
+import { renderBreedConfirm, renderBreedSelectA, renderBreedSelectB } from "../src/tui/views/breed-view.js";
+import { renderEggView, renderHatchView } from "../src/tui/views/egg-view.js";
 import { showBuddyCard } from "../src/gacha-animation.js";
 import { formatCompanionSummary } from "../src/companion-state.js";
 import { ANSI, clipLines, getRarityAccent, stripAnsi, wrapText } from "../src/tui/render-helpers.js";
 import { getRollActionIndex } from "../src/tui/roll-config.js";
+import { clearBreedEgg, saveSettings, setBreedEgg } from "../src/settings-manager.js";
+import { withTempEnvironment } from "../test-support/with-temp-environment.js";
 
 function assertIncludes(value, fragment) {
   assert.equal(value.includes(fragment), true);
@@ -41,123 +45,342 @@ test("rarity accents match the requested palette matrix", () => {
   assert.equal(getRarityAccent("legendary").color, ANSI.legendary);
 });
 
-test("home, edit, collection, and roll views render cb-zoo content", () => {
-  const home = renderHomeView({ menuIndex: 0, statusMessage: "Ready." }, { columns: 90, rows: 30 });
-  assert.match(home.bodyLines.join("\n"), /Roll, collect, and apply Claude buddies\./);
+test("home, edit, collection, and roll views render cb-zoo content", async () => {
+  await withTempEnvironment(async () => {
+    const home = renderHomeView({ menuIndex: 0, statusMessage: "Ready." }, { columns: 90, rows: 30 });
+    assert.match(home.bodyLines.join("\n"), /Roll, collect, and apply Claude buddies\./);
+    assert.match(home.topRight, /Rerolls 100\/100  Gen FULL/);
 
-  const edit = renderEditView({
-    edit: { activeField: "name", name: "Nova", personality: "Calm under pressure.", error: "", confirmReset: false },
-    statusMessage: "Editing"
-  }, { columns: 90, rows: 30 });
-  assert.match(edit.bodyLines.join("\n"), /Name: Nova/);
-  assert.match(edit.footer, /R reset/);
+    const edit = renderEditView({
+      edit: { activeField: "name", name: "Nova", personality: "Calm under pressure.", error: "", confirmReset: false },
+      statusMessage: "Editing"
+    }, { columns: 90, rows: 30 });
+    assert.match(edit.bodyLines.join("\n"), /Name: Nova/);
+    assert.match(edit.footer, /R reset/);
 
-  const collection = renderCollectionView({
-    collectionEntries: [
-      { species: "cat", rarity: "rare", total: 251, eye: "✦", hat: "crown", shiny: false, rolledAt: "2026-04-02T00:00:00.000Z" }
-    ],
-    collectionIndex: 0,
-    collectionPrompt: { mode: "browse" },
-    statusMessage: "Shelf"
-  }, { columns: 90, rows: 30 });
-  assert.match(collection.bodyLines.join("\n"), /Collection/);
-  assert.match(collection.bodyLines.join("\n"), /RARE CAT/);
-  assert.match(collection.footer, /Enter\/A apply/);
-  assert.match(collection.bodyLines.join("\n"), /\x1b\[34m/);
+    const collection = renderCollectionView({
+      collectionEntries: [
+        { species: "cat", rarity: "rare", total: 251, eye: "✦", hat: "crown", shiny: false, rolledAt: "2026-04-02T00:00:00.000Z" }
+      ],
+      collectionIndex: 0,
+      collectionPrompt: { mode: "browse" },
+      statusMessage: "Shelf"
+    }, { columns: 90, rows: 30 });
+    assert.match(collection.bodyLines.join("\n"), /Collection/);
+    assert.match(collection.bodyLines.join("\n"), /RARE CAT/);
+    assert.match(collection.footer, /Enter\/A apply/);
+    assert.match(collection.bodyLines.join("\n"), /\x1b\[34m/);
 
-  const current = renderCurrentView({
-    currentCompanion: {
-      name: "Plinth",
-      uuid: "73e7fce7-9a2a-40b1-b78e-11571f33011a",
-      species: "cat",
-      personality: "A methodical tabby that paces when you introduce a bug.",
-      hatchedAt: 1775023802769
-    },
-    currentBuddy: null,
-    statusMessage: "Current"
+    const current = renderCurrentView({
+      currentCompanion: {
+        name: "Plinth",
+        uuid: "73e7fce7-9a2a-40b1-b78e-11571f33011a",
+        species: "cat",
+        personality: "A methodical tabby that paces when you introduce a bug.",
+        hatchedAt: 1775023802769
+      },
+      currentBuddy: null,
+      statusMessage: "Current"
+    });
+    assert.match(current.bodyLines.join("\n"), /\x1b\[34m/);
+    assert.match(current.bodyLines.join("\n"), /Shiny: no/);
+
+    const roll = renderRollView({
+      roll: {
+        phase: "revealed",
+        buddy: {
+          uuid: "73e7fce7-9a2a-40b1-b78e-11571f33011a",
+          rarity: "rare",
+          species: "cat",
+          eye: "✦",
+          hat: "crown",
+          shiny: false,
+          stats: { DEBUGGING: 61, PATIENCE: 88, CHAOS: 18, WISDOM: 49, SNARK: 45 },
+          peak: "PATIENCE",
+          dump: "CHAOS",
+          total: 261
+        },
+        actionIndex: 0,
+        previewColor: "\x1b[36m",
+        previewStars: "★★★",
+        savedToCollection: false
+      },
+      statusMessage: "Rolled."
+    }, { columns: 90, rows: 30 });
+    assert.match(roll.bodyLines.join("\n"), /Equip/);
+    assert.match(roll.bodyLines.join("\n"), /Add/);
+    assert.match(roll.bodyLines.join("\n"), /Reroll/);
+    assert.match(roll.bodyLines.join("\n"), /collection only/);
+    assert.match(roll.bodyLines.join("\n"), /Shiny: no/);
+    assert.match(stripAnsi(roll.bodyLines[1]), /╔/);
+
+    const savedRoll = renderRollView({
+      roll: {
+        phase: "revealed",
+        buddy: {
+          uuid: "73e7fce7-9a2a-40b1-b78e-11571f33011a",
+          rarity: "rare",
+          species: "cat",
+          eye: "✦",
+          hat: "crown",
+          shiny: false,
+          stats: { DEBUGGING: 61, PATIENCE: 88, CHAOS: 18, WISDOM: 49, SNARK: 45 },
+          peak: "PATIENCE",
+          dump: "CHAOS",
+          total: 261
+        },
+        actionIndex: 1,
+        previewColor: "\x1b[36m",
+        previewStars: "★★★",
+        savedToCollection: true
+      },
+      statusMessage: "Saved."
+    }, { columns: 90, rows: 30 });
+    assert.match(savedRoll.bodyLines.join("\n"), /\x1b\[32m/);
+
+    const fullRoll = renderRollView({
+      roll: {
+        phase: "revealed",
+        buddy: {
+          uuid: "73e7fce7-9a2a-40b1-b78e-11571f33011a",
+          rarity: "rare",
+          species: "cat",
+          eye: "✦",
+          hat: "crown",
+          shiny: false,
+          stats: { DEBUGGING: 61, PATIENCE: 88, CHAOS: 18, WISDOM: 49, SNARK: 45 },
+          peak: "PATIENCE",
+          dump: "CHAOS",
+          total: 261
+        },
+        actionIndex: 0,
+        previewColor: "\x1b[36m",
+        previewStars: "★★★",
+        savedToCollection: false,
+        collectionFull: true
+      },
+      statusMessage: "Collection full."
+    }, { columns: 90, rows: 30 });
+    assert.match(fullRoll.bodyLines.join("\n"), /Collection full/);
+    assert.match(fullRoll.bodyLines.join("\n"), /Equip - full/);
+    assert.match(fullRoll.footer, /R reroll/);
   });
-  assert.match(current.bodyLines.join("\n"), /\x1b\[34m/);
-  assert.match(current.bodyLines.join("\n"), /Shiny: no/);
+});
 
-  const roll = renderRollView({
-    roll: {
-      phase: "revealed",
-      buddy: {
-        uuid: "73e7fce7-9a2a-40b1-b78e-11571f33011a",
-        rarity: "rare",
-        species: "cat",
-        eye: "✦",
-        hat: "crown",
-        shiny: false,
-        stats: { DEBUGGING: 61, PATIENCE: 88, CHAOS: 18, WISDOM: 49, SNARK: 45 },
-        peak: "PATIENCE",
-        dump: "CHAOS",
-        total: 261
-      },
-      actionIndex: 0,
-      previewColor: "\x1b[36m",
-      previewStars: "★★★",
-      savedToCollection: false
-    },
-    statusMessage: "Rolled."
-  }, { columns: 90, rows: 30 });
-  assert.match(roll.bodyLines.join("\n"), /Equip/);
-  assert.match(roll.bodyLines.join("\n"), /Add/);
-  assert.match(roll.bodyLines.join("\n"), /Reroll/);
-  assert.match(roll.bodyLines.join("\n"), /collection only/);
-  assert.match(roll.bodyLines.join("\n"), /Shiny: no/);
-  assert.match(stripAnsi(roll.bodyLines[1]), /╔/);
+test("home and roll views show charge countdown when rerolls are empty", async () => {
+  await withTempEnvironment(async () => {
+    saveSettings({
+      backup: null,
+      maxBuddy: 50,
+      rollConfig: { maxCharges: 5, regenMs: 300_000 },
+      rollCharges: { available: 0, updatedAt: Date.now() },
+      pendingBuddy: null,
+      breedEgg: null
+    });
 
-  const savedRoll = renderRollView({
-    roll: {
-      phase: "revealed",
-      buddy: {
-        uuid: "73e7fce7-9a2a-40b1-b78e-11571f33011a",
-        rarity: "rare",
-        species: "cat",
-        eye: "✦",
-        hat: "crown",
-        shiny: false,
-        stats: { DEBUGGING: 61, PATIENCE: 88, CHAOS: 18, WISDOM: 49, SNARK: 45 },
-        peak: "PATIENCE",
-        dump: "CHAOS",
-        total: 261
-      },
-      actionIndex: 1,
-      previewColor: "\x1b[36m",
-      previewStars: "★★★",
-      savedToCollection: true
-    },
-    statusMessage: "Saved."
-  }, { columns: 90, rows: 30 });
-  assert.match(savedRoll.bodyLines.join("\n"), /\x1b\[32m/);
+    const home = renderHomeView({ menuIndex: 0, statusMessage: "Ready." }, { columns: 90, rows: 30 });
+    assert.match(home.topRight, /Rerolls 0\/5  Gen 05:00/);
 
-  const fullRoll = renderRollView({
-    roll: {
-      phase: "revealed",
-      buddy: {
-        uuid: "73e7fce7-9a2a-40b1-b78e-11571f33011a",
-        rarity: "rare",
-        species: "cat",
-        eye: "✦",
-        hat: "crown",
-        shiny: false,
-        stats: { DEBUGGING: 61, PATIENCE: 88, CHAOS: 18, WISDOM: 49, SNARK: 45 },
-        peak: "PATIENCE",
-        dump: "CHAOS",
-        total: 261
+    const roll = renderRollView({
+      roll: {
+        phase: "revealed",
+        buddy: {
+          uuid: "73e7fce7-9a2a-40b1-b78e-11571f33011a",
+          rarity: "rare",
+          species: "cat",
+          eye: "✦",
+          hat: "crown",
+          shiny: false,
+          stats: { DEBUGGING: 61, PATIENCE: 88, CHAOS: 18, WISDOM: 49, SNARK: 45 },
+          peak: "PATIENCE",
+          dump: "CHAOS",
+          total: 261
+        },
+        actionIndex: 2,
+        previewColor: "\x1b[36m",
+        previewStars: "★★★",
+        savedToCollection: false,
+        collectionFull: false
       },
-      actionIndex: 0,
-      previewColor: "\x1b[36m",
-      previewStars: "★★★",
-      savedToCollection: false,
-      collectionFull: true
+      statusMessage: "No rerolls."
+    }, { columns: 90, rows: 30 });
+
+    assert.match(roll.bodyLines.join("\n"), /No rerolls left\. Next \+1 in 05:00\./);
+    assert.match(roll.bodyLines.join("\n"), /Reroll - empty/);
+    assert.doesNotMatch(roll.footer, /R reroll/);
+    assert.match(roll.topRight, /Rerolls 0\/5  Gen 05:00/);
+  });
+});
+
+test("breed and egg views render parent selection and hatch content", () => {
+  const selectA = renderBreedSelectA({
+    breed: {
+      phase: "select-a",
+      options: [
+        {
+          entry: { species: "cat", rarity: "rare", total: 251, eye: "✦", hat: "crown", shiny: false }
+        }
+      ],
+      selectIndex: 0
     },
-    statusMessage: "Collection full."
+    statusMessage: "Choose the first parent."
   }, { columns: 90, rows: 30 });
-  assert.match(fullRoll.bodyLines.join("\n"), /Collection full/);
-  assert.match(fullRoll.bodyLines.join("\n"), /Equip - full/);
-  assert.match(fullRoll.footer, /R reroll/);
+  assert.equal(selectA.subtitle, "Choose the first buddy.");
+  assert.match(selectA.bodyLines.join("\n"), /RARE CAT/);
+  assert.match(selectA.bodyLines.join("\n"), /Eyes: ✦  Hat: crown/);
+  assert.doesNotMatch(selectA.bodyLines.join("\n"), /Choose the first buddy/);
+
+  const selectB = renderBreedSelectB({
+    breed: {
+      phase: "select-b",
+      parentA: { species: "cat", rarity: "rare", eye: "✦", hat: "crown" },
+      options: [
+        {
+          entry: { species: "duck", rarity: "common", total: 154, eye: "·", hat: "none", shiny: false }
+        }
+      ],
+      selectIndex: 0
+    },
+    statusMessage: "Choose the second parent."
+  }, { columns: 90, rows: 30 });
+  assert.match(selectB.subtitle, /← Back/);
+  assert.match(selectB.subtitle, /A: CAT rare/);
+  assertIncludes(selectB.subtitle, ANSI.blue);
+  assert.match(selectB.bodyLines.join("\n"), /COMMON DUCK/);
+  assert.doesNotMatch(selectB.bodyLines.join("\n"), /Parent A locked/);
+  assert.match(selectB.footer, /←\/Esc back/);
+
+  const confirm = renderBreedConfirm({
+    breed: {
+      phase: "confirm",
+      parentA: { species: "cat", rarity: "rare", eye: "✦", hat: "crown", shiny: false, total: 251 },
+      parentB: { species: "duck", rarity: "uncommon", eye: "·", hat: "none", shiny: false, total: 154 }
+    },
+    statusMessage: "Confirm the pairing."
+  }, { columns: 90, rows: 30 });
+  assert.match(confirm.subtitle, /← Back/);
+  assert.match(confirm.subtitle, /A: CAT rare/);
+  assert.match(confirm.subtitle, /B: DUCK uncommon/);
+  assertIncludes(confirm.subtitle, ANSI.blue);
+  assertIncludes(confirm.subtitle, ANSI.green);
+  assert.match(confirm.bodyLines.join("\n"), /RARE CAT/);
+  assert.match(confirm.bodyLines.join("\n"), /UNCOMMON DUCK/);
+  assert.match(confirm.bodyLines.join("\n"), /×/);
+  assert.doesNotMatch(confirm.bodyLines.join("\n"), /GOOSE/);
+  assert.doesNotMatch(confirm.bodyLines.join("\n"), /Breed these two buddies\?/);
+  assert.match(confirm.footer, /Enter breed  ←\/Esc back/);
+
+  const egg = renderEggView({
+    breed: {
+      egg: {
+        parentA: "11111111-1111-4111-8111-111111111111",
+        parentB: "22222222-2222-4222-8222-222222222222",
+        species: "goose",
+        rarity: "uncommon",
+        eye: "✦",
+        hat: "none",
+        hatchAt: Date.now() + 30_000
+      },
+      parentA: { species: "cat" },
+      parentB: { species: "duck" }
+    },
+    statusMessage: "Incubating"
+  }, { columns: 90, rows: 30 });
+  assert.match(egg.bodyLines.join("\n"), /Lineage: cat × duck/);
+  assert.match(egg.bodyLines.join("\n"), /Hatching in/);
+
+  const hatch = renderHatchView({
+    breed: {
+      hatchedBuddy: {
+        species: "goose",
+        rarity: "uncommon",
+        eye: "✦",
+        hat: "none",
+        shiny: false,
+        total: 188,
+        stats: { DEBUGGING: 42, PATIENCE: 55, CHAOS: 19, WISDOM: 37, SNARK: 35 },
+        peak: "PATIENCE",
+        dump: "CHAOS"
+      },
+      hatchActionIndex: 0,
+      collectionFull: false,
+      egg: {
+        parentA: "11111111-1111-4111-8111-111111111111",
+        parentB: "22222222-2222-4222-8222-222222222222"
+      },
+      parentA: { species: "cat" },
+      parentB: { species: "duck" }
+    },
+    statusMessage: "Ready"
+  }, { columns: 90, rows: 30 });
+  assert.match(hatch.bodyLines.join("\n"), /EGG HATCHED/);
+  assert.match(hatch.bodyLines.join("\n"), /Bred from cat × duck/);
+  assert.match(hatch.bodyLines.join("\n"), /DEBUGGING/);
+  assert.match(hatch.bodyLines.join("\n"), /Total:/);
+  assertIncludes(hatch.bodyLines.join("\n"), ANSI.green);
+  assert.match(hatch.bodyLines.join("\n"), /Equip = save \+ apply/);
+  assert.match(hatch.footer, /E equip  A add  D discard/);
+
+  const fullHatch = renderHatchView({
+    breed: {
+      hatchedBuddy: {
+        species: "goose",
+        rarity: "uncommon",
+        eye: "✦",
+        hat: "none",
+        shiny: false,
+        total: 188,
+        stats: { DEBUGGING: 42, PATIENCE: 55, CHAOS: 19, WISDOM: 37, SNARK: 35 },
+        peak: "PATIENCE",
+        dump: "CHAOS"
+      },
+      hatchActionIndex: 1,
+      collectionFull: true,
+      egg: {
+        parentA: "11111111-1111-4111-8111-111111111111",
+        parentB: "22222222-2222-4222-8222-222222222222"
+      },
+      parentA: { species: "cat" },
+      parentB: { species: "duck" }
+    },
+    statusMessage: "Collection full"
+  }, { columns: 90, rows: 30 });
+  assert.match(fullHatch.bodyLines.join("\n"), /Add and equip are blocked/);
+  assert.match(fullHatch.bodyLines.join("\n"), /Add - full/);
+  assert.match(fullHatch.footer, /D discard/);
+});
+
+test("home view shows incubating and ready egg labels", async () => {
+  await withTempEnvironment(async () => {
+    setBreedEgg({
+      parentA: "11111111-1111-4111-8111-111111111111",
+      parentB: "22222222-2222-4222-8222-222222222222",
+      species: "goose",
+      rarity: "uncommon",
+      eye: "✦",
+      hat: "none",
+      shiny: false,
+      createdAt: Date.now(),
+      hatchAt: Date.now() + 60_000
+    });
+    const incubating = renderHomeView({ menuIndex: 3, statusMessage: "" }, { columns: 90, rows: 30 });
+    assert.match(incubating.bodyLines.join("\n"), /View Egg/);
+
+    setBreedEgg({
+      parentA: "11111111-1111-4111-8111-111111111111",
+      parentB: "22222222-2222-4222-8222-222222222222",
+      species: "goose",
+      rarity: "uncommon",
+      eye: "✦",
+      hat: "none",
+      shiny: false,
+      createdAt: Date.now() - 60_000,
+      hatchAt: Date.now() - 1_000
+    });
+    const ready = renderHomeView({ menuIndex: 3, statusMessage: "" }, { columns: 90, rows: 30 });
+    assert.match(ready.bodyLines.join("\n"), /Hatch Egg/);
+    clearBreedEgg();
+  });
 });
 
 test("edit view swaps to reset confirmation copy when requested", () => {

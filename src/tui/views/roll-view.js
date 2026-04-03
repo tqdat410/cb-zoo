@@ -1,19 +1,28 @@
 import { STARS } from "../../config.js";
 import { showBuddyCard } from "../../gacha-animation.js";
+import { formatRollChargeSummary, formatRollCountdown, getRollChargeSnapshot } from "../../roll-charge-manager.js";
 import { renderSprite } from "../../sprites.js";
 import { getScreenMetrics } from "../render-layout.js";
 import { ANSI, centerBlockLines, centerUniformBlockLines, centerVisible } from "../render-helpers.js";
 import { ROLL_ACTIONS } from "../roll-config.js";
 
-function isBlockedAction(action, roll) {
+function isBlockedAction(action, roll, chargeSnapshot) {
+  if (action.id === "reroll" && chargeSnapshot.available <= 0) {
+    return true;
+  }
   return roll.collectionFull && !roll.savedToCollection && (action.id === "equip" || action.id === "add");
 }
 
-function renderAction(action, index, roll) {
+function renderAction(action, index, roll, chargeSnapshot) {
   const label = action.label;
   const selected = index === roll.actionIndex;
   const accent = roll.previewColor ?? ANSI.gold;
-  if (isBlockedAction(action, roll)) {
+  if (action.id === "reroll" && chargeSnapshot.available <= 0) {
+    return selected
+      ? `${ANSI.dim}${ANSI.yellow}[${label} - empty]${ANSI.reset}`
+      : `${ANSI.dim}${label} - empty${ANSI.reset}`;
+  }
+  if (isBlockedAction(action, roll, chargeSnapshot)) {
     return selected
       ? `${ANSI.dim}${ANSI.red}[${label} - full]${ANSI.reset}`
       : `${ANSI.dim}${label} - full${ANSI.reset}`;
@@ -31,6 +40,8 @@ export function renderRollView(state, terminal = {}) {
   const { innerWidth } = getScreenMetrics(terminal);
   const bodyLines = [];
   const centerLine = (line) => centerVisible(line, innerWidth);
+  const topRightSnapshot = getRollChargeSnapshot();
+  const chargeSnapshot = roll.phase === "revealed" ? topRightSnapshot : null;
 
   if (roll.phase === "spinning") {
     bodyLines.push(centerLine(`${ANSI.dim}${ANSI.gray}Reading Claude state...${ANSI.reset}`));
@@ -50,27 +61,37 @@ export function renderRollView(state, terminal = {}) {
     bodyLines.push(
       centerLine(
         roll.collectionFull && !roll.savedToCollection
-          ? `${ANSI.dim}${ANSI.red}Collection full. Reroll or delete a buddy first.${ANSI.reset}`
-          : `${ANSI.dim}Equip = save + apply | Add = collection only${ANSI.reset}`
+          ? chargeSnapshot.available > 0
+            ? `${ANSI.dim}${ANSI.red}Collection full. Reroll or delete a buddy first.${ANSI.reset}`
+            : `${ANSI.dim}${ANSI.red}Collection full. Next reroll in ${formatRollCountdown(chargeSnapshot.msUntilNext)}.${ANSI.reset}`
+          : chargeSnapshot.available > 0
+            ? `${ANSI.dim}Equip = save + apply | Add = collection only${ANSI.reset}`
+            : `${ANSI.dim}${ANSI.yellow}No rerolls left. Next +1 in ${formatRollCountdown(chargeSnapshot.msUntilNext)}.${ANSI.reset}`
       )
     );
     bodyLines.push("");
-    bodyLines.push(centerLine(ROLL_ACTIONS.map((action, index) => renderAction(action, index, roll)).join("   ")));
+    bodyLines.push(centerLine(ROLL_ACTIONS.map((action, index) => renderAction(action, index, roll, chargeSnapshot)).join("   ")));
   } else {
     bodyLines.push("No active reveal.");
   }
+
+  const revealFooter = chargeSnapshot
+    ? roll.collectionFull && !roll.savedToCollection
+      ? chargeSnapshot.available > 0
+        ? "Arrows move  Enter go  R reroll  Esc back"
+        : "Arrows move  Enter go  Esc back"
+      : chargeSnapshot.available > 0
+        ? "Arrows move  Enter go  E equip  A add  R reroll  Esc back"
+        : "Arrows move  Enter go  E equip  A add  Esc back"
+    : "Please wait...";
 
   return {
     title: "ROLL",
     subtitle: "Claude buddy reveal",
     bodyLines,
-    footer:
-      roll.phase === "revealed"
-        ? roll.collectionFull && !roll.savedToCollection
-          ? "Arrows move  Enter go  R reroll  Esc back"
-          : "Arrows move  Enter go  E equip  A add  Esc back"
-        : "Please wait...",
+    footer: roll.phase === "revealed" ? revealFooter : "Please wait...",
     palette: roll.previewColor ?? ANSI.cyan,
+    topRight: `${ANSI.dim}${formatRollChargeSummary(topRightSnapshot)}${ANSI.reset}`,
     status: state.statusMessage || "Reveal in progress."
   };
 }

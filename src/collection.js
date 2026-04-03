@@ -8,6 +8,14 @@ function stripUtf8Bom(content) {
   return content.charCodeAt(0) === 0xfeff ? content.slice(1) : content;
 }
 
+function isBredFrom(bredFrom) {
+  return (
+    Array.isArray(bredFrom) &&
+    bredFrom.length === 2 &&
+    bredFrom.every((uuid) => typeof uuid === "string" && UUID_PATTERN.test(uuid))
+  );
+}
+
 function isCollectionEntry(entry) {
   return (
     entry &&
@@ -21,7 +29,8 @@ function isCollectionEntry(entry) {
     typeof entry.hat === "string" &&
     typeof entry.shiny === "boolean" &&
     Number.isFinite(entry.total) &&
-    (entry.rolledAt === undefined || typeof entry.rolledAt === "string")
+    (entry.rolledAt === undefined || typeof entry.rolledAt === "string") &&
+    (entry.bredFrom === undefined || isBredFrom(entry.bredFrom))
   );
 }
 
@@ -64,7 +73,12 @@ function sameCollectionEntry(left, right) {
     left.hat === right.hat &&
     left.shiny === right.shiny &&
     left.total === right.total &&
-    left.rolledAt === right.rolledAt
+    left.rolledAt === right.rolledAt &&
+    (left.bredFrom === right.bredFrom ||
+      (Array.isArray(left.bredFrom) &&
+        Array.isArray(right.bredFrom) &&
+        left.bredFrom.length === right.bredFrom.length &&
+        left.bredFrom.every((uuid, index) => uuid === right.bredFrom[index])))
   );
 }
 
@@ -98,7 +112,8 @@ export function saveToCollection(buddy) {
     hat: buddy.hat,
     shiny: buddy.shiny,
     total: buddy.total,
-    rolledAt: new Date().toISOString()
+    rolledAt: new Date().toISOString(),
+    ...(buddy && Object.hasOwn(buddy, "bredFrom") ? { bredFrom: buddy.bredFrom } : {})
   };
   if (!isCollectionEntry(entry)) {
     throw new Error("Refusing to save an invalid collection entry.");

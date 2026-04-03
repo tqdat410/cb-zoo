@@ -2,7 +2,8 @@ import { randomUUID } from "node:crypto";
 import { pick, rollFrom, mulberry32, hashString } from "../buddy-engine.js";
 import { deleteCollectionEntry, hasCollectionEntryForBuddy, loadCollection, saveToCollection } from "../collection.js";
 import { EYES, SPECIES } from "../config.js";
-import { clearPendingBuddy, getMaxBuddy, setPendingBuddy } from "../settings-manager.js";
+import { formatRollCountdown, getRollChargeSnapshot } from "../roll-charge-manager.js";
+import { clearPendingBuddy, getMaxBuddy, loadSettings, saveSettings, setPendingBuddy } from "../settings-manager.js";
 import { applyUuid, backupUuid, hasBackup } from "../uuid-manager.js";
 import { syncCollection } from "./state.js";
 import { createIdleRollState, ROLL_ACTIONS } from "./roll-config.js";
@@ -13,13 +14,19 @@ function sleep(milliseconds) {
 }
 
 export async function runRollSequence(state, writeScreen) {
-  state.screen = "roll";
-  state.busy = true;
-  state.statusMessage = "Rolling buddy signal...";
+  const chargeSnapshot = getRollChargeSnapshot();
+  if (chargeSnapshot.available <= 0) {
+    state.busy = false;
+    state.statusMessage = `No rolls left. Next +1 in ${formatRollCountdown(chargeSnapshot.msUntilNext)}.`;
+    return false;
+  }
   if (!hasBackup()) {
     backupUuid();
     state.statusMessage = "Backup created before first roll.";
   }
+  state.screen = "roll";
+  state.busy = true;
+  state.statusMessage = state.statusMessage || "Rolling buddy signal...";
   const buddy = rollFrom(randomUUID());
   const rng = mulberry32(hashString(`${buddy.uuid}:tui-spin`));
   const accent = getRarityAccent(buddy.rarity);
@@ -47,6 +54,24 @@ export async function runRollSequence(state, writeScreen) {
   writeScreen(state);
   await sleep(buddy.rarity === "legendary" ? 500 : 300);
 
+  const latestChargeSnapshot = getRollChargeSnapshot();
+  if (latestChargeSnapshot.available <= 0) {
+    state.busy = false;
+    state.screen = "home";
+    state.statusMessage = `No rolls left. Next +1 in ${formatRollCountdown(latestChargeSnapshot.msUntilNext)}.`;
+    return false;
+  }
+
+  const settings = loadSettings({ strict: true });
+  saveSettings({
+    ...settings,
+    rollCharges: {
+      available: latestChargeSnapshot.available - 1,
+      updatedAt: latestChargeSnapshot.isFull ? Date.now() : latestChargeSnapshot.updatedAt
+    },
+    pendingBuddy: buddy
+  });
+
   state.roll = {
     ...state.roll,
     phase: "revealed",
@@ -58,9 +83,9 @@ export async function runRollSequence(state, writeScreen) {
     savedToCollection: false,
     collectionFull
   };
-  setPendingBuddy(buddy);
   state.busy = false;
   state.statusMessage = `Rolled ${buddy.rarity} ${buddy.species}.`;
+  return true;
 }
 
 function resetRollState(state) {

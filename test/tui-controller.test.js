@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { existsSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { deleteCollectionEntry, loadCollection, saveToCollection } from "../src/collection.js";
-import { getPendingBuddy, saveSettings } from "../src/settings-manager.js";
+import { getPendingBuddy, getRollCharges, saveSettings } from "../src/settings-manager.js";
 import { rollFrom } from "../src/buddy-engine.js";
 import { createKeypressHandler } from "../src/tui/controller.js";
 import { applyRollAction, runRollSequence } from "../src/tui/roll-flow.js";
@@ -273,6 +273,33 @@ test("controller clears busy when roll start fails", async () => {
   });
 });
 
+test("controller does not burn a charge when the pending reveal cannot be persisted", async () => {
+  await withTempEnvironment(async ({ configFile, dataDir }) => {
+    saveSettings({
+      backup: {
+        uuid: "73e7fce7-9a2a-40b1-b78e-11571f33011a",
+        stateFile: configFile,
+        backedUpAt: "2026-04-03T12:00:00.000Z"
+      },
+      maxBuddy: 50,
+      rollConfig: { maxCharges: 5, regenMs: 300_000 },
+      rollCharges: { available: 5, updatedAt: Date.now() },
+      pendingBuddy: null,
+      breedEgg: null
+    });
+    writeFileSync(join(dataDir, "settings.json.tmp"), "placeholder", "utf8");
+    const state = createInitialState();
+    const handler = createKeypressHandler(state, () => {});
+
+    await handler({ name: "enter" });
+
+    assert.equal(state.screen, "home");
+    assert.equal(getRollCharges().available, 5);
+    assert.equal(getPendingBuddy(), null);
+    assert.match(state.statusMessage, /existing temporary file/i);
+  });
+});
+
 test("equip rollback removes collection entry when apply fails", async () => {
   await withTempEnvironment(async ({ configFile }) => {
     writeFileSync(`${configFile}.tmp`, "placeholder", "utf8");
@@ -335,6 +362,27 @@ test("controller resumes a pending buddy from the home screen", async () => {
   });
 });
 
+test("controller blocks a new home roll when no charges remain", async () => {
+  await withTempEnvironment(async () => {
+    saveSettings({
+      backup: null,
+      maxBuddy: 50,
+      rollConfig: { maxCharges: 5, regenMs: 300_000 },
+      rollCharges: { available: 0, updatedAt: Date.now() },
+      pendingBuddy: null,
+      breedEgg: null
+    });
+    const state = createInitialState();
+    const handler = createKeypressHandler(state, () => {});
+
+    await handler({ name: "enter" });
+
+    assert.equal(state.screen, "home");
+    assert.equal(state.busy, false);
+    assert.match(state.statusMessage, /No rolls left\. Next \+1 in 05:00\./);
+  });
+});
+
 test("controller can render and reroll a resumed pending buddy", async () => {
   await withTempEnvironment(async () => {
     const pendingBuddy = rollFrom("11111111-1111-4111-8111-111111111111");
@@ -355,6 +403,27 @@ test("controller can render and reroll a resumed pending buddy", async () => {
     assert.equal(state.screen, "roll");
     assert.equal(state.roll.phase, "revealed");
     assert.deepEqual(Object.keys(state.roll.buddy.stats).length, 5);
+  });
+});
+
+test("controller still resumes a pending buddy even when charges are empty", async () => {
+  await withTempEnvironment(async () => {
+    const pendingBuddy = rollFrom("11111111-1111-4111-8111-111111111111");
+    saveSettings({
+      backup: null,
+      maxBuddy: 50,
+      rollConfig: { maxCharges: 5, regenMs: 300_000 },
+      rollCharges: { available: 0, updatedAt: Date.now() },
+      pendingBuddy
+    });
+    const state = createInitialState();
+    const handler = createKeypressHandler(state, () => {});
+
+    await handler({ name: "enter" });
+
+    assert.equal(state.screen, "roll");
+    assert.equal(state.roll.phase, "revealed");
+    assert.equal(state.roll.buddy.uuid, pendingBuddy.uuid);
   });
 });
 
