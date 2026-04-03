@@ -1,15 +1,27 @@
 # Project Changelog
 
+## 2026-04-03
+
+- Changed the TUI rarity palette so common buddies stay neutral, uncommon renders green, rare buddies render blue, epic stays magenta, and legendary stays gold
+- Extended rarity accents to the buddy outer frame in reveal, current, and collection surfaces
+- Renamed the TUI `Archive` surface to `Collection`
+- Added TUI collection actions for applying the selected buddy without removing it from storage and deleting it behind an inline confirmation step
+- Center-aligned the default TUI shell on wide terminals instead of anchoring it to the left edge
+- Replaced the hand-drawn home banner with a layout-safe framed intro block to stop right-edge drift
+- Normalized reveal-stage centering around shared shell metrics instead of per-view fixed widths
+- Refreshed TUI and core docs copy so cb-zoo no longer describes itself with borrowed crossover wording
+- Fixed ANSI accent persistence so reveal/current/collection buddy text returns to the selected rarity color after embedded style resets, keeping `epic` purple and `legendary` gold across text and frame chrome
+
 ## 2026-04-02
 
-- Refined the handheld TUI roll flow so revealed buddies are not auto-added to the collection
+- Refined the cb-zoo TUI roll flow so revealed buddies are not auto-added to the collection
 - Added explicit TUI roll actions for `Equip`, `Add`, `Reroll`, and `Back`
 - Made TUI `Equip` save the revealed buddy before applying its UUID, while `Add` saves without applying
 - Removed the solid blue TUI background fill and leaned on rarity-colored accents instead
-- Switched interactive no-flag runs to a default Pokemon handheld-style TUI with keyboard navigation and shared shell layout
+- Switched interactive no-flag runs to a default centered TUI with keyboard navigation and shared shell layout
 - Added a raw ANSI TUI layer for home, roll, current, collection, and edit buddy flows while keeping explicit CLI flags and non-TTY fallback behavior
 - Added `--plain` as an escape hatch to the legacy line-oriented roll flow
-- Added routing and handheld-layout regression coverage for the new default mode
+- Added routing and shared-shell regression coverage for the new default mode
 - Added `--set-name` and `--set-personality` so users can edit stored companion metadata without changing UUID-derived bones
 - Reused the resolved Claude state write path for companion metadata updates and rejected blank edit values or missing companion state
 - Standardized Claude account state path resolution around `.claude.json`

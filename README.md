@@ -1,11 +1,12 @@
 # cb-zoo
 
-`cb-zoo` is a zero-dependency Node.js terminal app for rolling, collecting, and applying Claude Code buddies with a Pokemon handheld-style TUI and a gacha-style reveal flow.
+`cb-zoo` is a zero-dependency Node.js terminal app for rolling, collecting, and applying Claude Code buddies with a centered retro TUI shell and a gacha-style reveal flow.
 
 ## Features
 
 - Deterministic buddy rolls from the active Claude UUID using the current Claude buddy hash pipeline
-- Default interactive TUI styled like a Pokemon handheld shell
+- Default interactive TUI with a centered cb-zoo shell
+- Shared rarity accents across reveal, current, and collection views: common neutral, uncommon green, rare blue, epic magenta, legendary gold
 - Real `--current` companion inspection that merges stored soul data with UUID-regenerated buddy bones
 - Cross-platform Claude UUID backup, apply, and restore flow
 - Local collection tracking in `~/.cb-zoo/collection.json`
@@ -37,14 +38,17 @@ node ./src/cli.js --restore
 
 ## Default Mode
 
-- Interactive TTY runs now open the handheld TUI by default.
+- Interactive TTY runs now open the centered TUI by default.
 - Non-interactive runs and explicit command flags keep using the plain CLI-safe paths.
 - Use `--plain` if you want the legacy line-oriented roll flow in a real terminal.
+- If the terminal is smaller than `64x24`, the TUI shows a minimum-size warning instead of drawing a broken layout.
 
 ## Roll Flow
 
 - TUI roll mode reveals a buddy first, then lets you `Equip`, `Add`, `Reroll`, or go `Back`.
-- In the TUI, `Add` saves the buddy to your local collection and `Equip` saves then applies it immediately.
+- Revealed buddies stay unsaved until you choose `Add` or `Equip`.
+- In the TUI, `Add` saves the buddy to the collection and `Equip` saves then applies it immediately.
+- The TUI `Collection` screen can apply the selected buddy without removing it from `collection.json`, or delete it after an explicit confirmation.
 - Plain CLI roll mode still uses the legacy prompt flow.
 - `--quick` skips animation, but it still uses the same prompt flow.
 - In non-interactive use, pipe input such as `q`, `r`, or `a`. Empty stdin fails fast before backup or collection writes.

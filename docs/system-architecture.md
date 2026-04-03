@@ -29,11 +29,17 @@
 - `src/launch-mode.js`
   Decides whether the app should launch the default TUI or stay on an explicit plain CLI path.
 
+- `src/tui/render-helpers.js`
+  Owns shared TUI ANSI helpers, visible-width handling, and the single rarity-accent mapping used by roll, current, and collection surfaces.
+
+- `src/tui/render-layout.js`
+  Calculates centered shell metrics, enforces the bounded TUI width, and falls back to a minimum-size warning when the terminal is smaller than `64x24`.
+
 - `src/tui/*`
-  Implements the Pokemon handheld TUI runtime: keypress handling, handheld frame rendering, state transitions, roll flow, and individual views.
+  Implements the centered cb-zoo TUI runtime: keypress handling, framed shell rendering, state transitions, roll flow, and individual views.
 
 - `src/collection.js`
-  Validates persisted collection state, rejects pre-existing temp write paths, appends minimal roll entries, and renders the collection summary grid.
+  Validates persisted collection state, rejects pre-existing temp write paths, appends minimal roll entries only when the user saves a reveal, and removes saved entries on confirmed collection deletes.
 
 - `src/cli.js`
   Parses arguments and orchestrates rolling, applying, restoring, and collection views.
@@ -43,11 +49,12 @@
 1. Entry routing decides between the default TUI and explicit/plain CLI paths.
 2. TUI or CLI validates existing collection state before roll mode creates backups or reveals a new buddy.
 3. Buddy engine rolls deterministic traits from the UUID via wyhash-seeded Mulberry32.
-4. TUI reveal stages or plain animation render the buddy card.
-5. Collection store appends a minimal record to `~/.cb-zoo/collection.json` only after the existing file parses as a valid buddy-entry array.
-6. If the user applies the roll, UUID manager updates the resolved Claude account state file.
-7. If the user runs `--current` or opens the current-buddy TUI view, companion-state reads stored soul data, regenerates UUID-derived bones, and renders the merged summary.
-8. If the user edits the current buddy name or personality, UUID manager mutates only those stored companion metadata fields and leaves UUID-derived bones unchanged.
+4. TUI reveal stages or plain animation render the buddy card without persisting the reveal yet.
+5. If the user chooses `Add` or `Equip`, collection storage appends a minimal record to `~/.cb-zoo/collection.json` only after the existing file parses as a valid buddy-entry array.
+6. If the user chooses `Equip`, UUID manager updates the resolved Claude account state file after the collection write succeeds.
+7. If the user opens the TUI `Collection` view, they can inspect saved buddies, apply the selected UUID directly without removing the saved entry, or delete the selected entry after confirmation. Collection apply creates the UUID backup first when needed.
+8. If the user runs `--current` or opens the current-buddy TUI view, companion-state reads stored soul data, regenerates UUID-derived bones, and renders the merged summary.
+9. If the user edits the current buddy name or personality, UUID manager mutates only those stored companion metadata fields and leaves UUID-derived bones unchanged.
 
 ## Storage
 
@@ -65,6 +72,7 @@
 - Malformed UUIDs and invalid config container shapes are rejected before config writes.
 - Companion metadata edits fail closed when the resolved Claude state has no valid stored companion or when trimmed edit values are empty.
 - TUI startup must restore terminal state on exit or thrown errors.
+- TUI layout falls back to a minimum-size warning when the terminal is smaller than `64x24`.
 - Pre-existing temp write paths are rejected before config or collection writes.
 - Missing backup throws a restore-specific error.
 - Corrupt existing backups block roll mode and backup/apply/restore paths before any config or collection mutation.
