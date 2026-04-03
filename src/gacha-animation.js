@@ -1,27 +1,7 @@
 import { STARS, SPECIES } from "./config.js";
 import { hashString, mulberry32, pick } from "./buddy-engine.js";
 import { renderSprite } from "./sprites.js";
-
-const ANSI = {
-  reset: "\x1b[0m",
-  bold: "\x1b[1m",
-  dim: "\x1b[2m",
-  gray: "\x1b[90m",
-  green: "\x1b[32m",
-  cyan: "\x1b[36m",
-  magenta: "\x1b[35m",
-  gold: "\x1b[33m",
-  red: "\x1b[31m",
-  yellow: "\x1b[33m"
-};
-
-const RARITY_COLORS = {
-  common: ANSI.gray,
-  uncommon: ANSI.green,
-  rare: ANSI.cyan,
-  epic: ANSI.magenta,
-  legendary: ANSI.gold
-};
+import { ANSI, getRarityAccent, withAnsiColor, withPersistentAnsiColor } from "./tui/render-helpers.js";
 
 function sleep(milliseconds) {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
@@ -83,32 +63,32 @@ export function showBuddyCard(buddy, options = {}) {
   const useAnsi = options.useAnsi ?? supportsAnsi();
   const sprite = renderSprite(buddy).split("\n");
   const rarityLine = `${rarityLabel(buddy.rarity)} ${titleCase(buddy.species)}`;
-  const shinyText = buddy.shiny ? "  Shiny: yes" : "";
+  const rarityAccent = getRarityAccent(buddy.rarity).color;
+  const tintLine = (line) => (useAnsi ? withPersistentAnsiColor(line, rarityAccent) : line);
+  const sideBorder = useAnsi ? withAnsiColor("║", rarityAccent) : "║";
   const lines = [
-    ` ${rarityLine}`,
+    ` ${tintLine(`${ANSI.bold}${rarityLine}${ANSI.reset}`)}`,
     "",
-    ...sprite.map((line) => `   ${line}`),
+    ...sprite.map((line) => tintLine(`   ${line}`)),
     "",
-    ` Eyes: ${buddy.eye}  Hat: ${buddy.hat}${shinyText}`,
+    tintLine(` Eyes: ${buddy.eye}  Hat: ${buddy.hat}  Shiny: ${buddy.shiny ? "yes" : "no"}`),
     ""
   ];
 
   for (const [name, value] of Object.entries(buddy.stats)) {
-    lines.push(` ${name.padEnd(10)} ${renderStatBar(value, useAnsi)} ${String(value).padStart(3)}`);
+    lines.push(tintLine(` ${name.padEnd(10)} ${renderStatBar(value, useAnsi)} ${String(value).padStart(3)}`));
   }
 
-  lines.push("", ` Peak: ${buddy.peak}  Dump: ${buddy.dump}`, ` Total: ${buddy.total}`);
+  lines.push("", tintLine(` Peak: ${buddy.peak}  Dump: ${buddy.dump}`), tintLine(` Total: ${buddy.total}`));
   const width = 44;
-  const border = "═".repeat(width);
-  const card = [
-    `╔${border}╗`,
-    ...lines.map((line) => `║ ${padLine(line, width)} ║`),
-    `╚${border}╝`
+  const horizontalBorder = "═".repeat(width + 2);
+  const topBorder = useAnsi ? withAnsiColor(`╔${horizontalBorder}╗`, rarityAccent) : `╔${horizontalBorder}╗`;
+  const bottomBorder = useAnsi ? withAnsiColor(`╚${horizontalBorder}╝`, rarityAccent) : `╚${horizontalBorder}╝`;
+  return [
+    topBorder,
+    ...lines.map((line) => `${sideBorder} ${padLine(line, width)} ${sideBorder}`),
+    bottomBorder
   ].join("\n");
-  if (!useAnsi) {
-    return card;
-  }
-  return card.replace(rarityLine, `${RARITY_COLORS[buddy.rarity]}${ANSI.bold}${rarityLine}${ANSI.reset}`);
 }
 
 async function spinPhase(buddy) {
@@ -126,7 +106,7 @@ async function spinPhase(buddy) {
 }
 
 async function rarityReveal(rarity) {
-  const color = RARITY_COLORS[rarity];
+  const color = getRarityAccent(rarity).color;
   const burst = rarity === "legendary" ? "✦".repeat(18) : "★".repeat(12);
   clearScreen();
   process.stdout.write(`${center(`${color}${ANSI.bold}${burst}${ANSI.reset}`)}\n\n`);

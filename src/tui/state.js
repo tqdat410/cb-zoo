@@ -13,32 +13,33 @@ export function createInitialState() {
   return {
     screen: "home",
     menuIndex: 0,
-    statusMessage: "Welcome back, trainer.",
+    statusMessage: "Welcome back to cb-zoo.",
     shouldExit: false,
     busy: false,
     roll: createIdleRollState(),
     collectionEntries: [],
     collectionIndex: 0,
+    collectionPrompt: { mode: "browse" },
     currentCompanion: null,
     currentBuddy: null,
-    edit: { activeField: "name", name: "", personality: "", error: "" }
+    edit: { activeField: "name", name: "", personality: "", error: "", confirmReset: false }
   };
 }
 
-export function renderScreen(state) {
+export function renderScreen(state, terminal = {}) {
   if (state.screen === "roll") {
-    return renderRollView(state);
+    return renderRollView(state, terminal);
   }
   if (state.screen === "current") {
-    return renderCurrentView(state);
+    return renderCurrentView(state, terminal);
   }
   if (state.screen === "collection") {
-    return renderCollectionView(state);
+    return renderCollectionView(state, terminal);
   }
   if (state.screen === "edit") {
-    return renderEditView(state);
+    return renderEditView(state, terminal);
   }
-  return renderHomeView(state);
+  return renderHomeView(state, terminal);
 }
 
 export function syncCurrent(state) {
@@ -50,6 +51,13 @@ export function syncCurrent(state) {
 export function syncCollection(state) {
   state.collectionEntries = loadCollection().slice().reverse();
   state.collectionIndex = Math.min(state.collectionIndex, Math.max(0, state.collectionEntries.length - 1));
+  if (state.collectionEntries.length === 0) {
+    state.collectionIndex = 0;
+  }
+}
+
+export function resetCollectionPrompt(state) {
+  state.collectionPrompt = { mode: "browse" };
 }
 
 export function openEdit(state) {
@@ -63,7 +71,8 @@ export function openEdit(state) {
     activeField: "name",
     name: state.currentCompanion.name,
     personality: state.currentCompanion.personality || "",
-    error: ""
+    error: "",
+    confirmReset: false
   };
   state.screen = "edit";
 }

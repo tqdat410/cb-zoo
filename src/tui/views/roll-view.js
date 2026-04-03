@@ -1,13 +1,14 @@
 import { STARS } from "../../config.js";
 import { showBuddyCard } from "../../gacha-animation.js";
 import { renderSprite } from "../../sprites.js";
-import { ANSI, centerVisible } from "../render-helpers.js";
+import { getScreenMetrics } from "../render-layout.js";
+import { ANSI, centerBlockLines, centerUniformBlockLines, centerVisible } from "../render-helpers.js";
 import { ROLL_ACTIONS } from "../roll-config.js";
 
 function renderAction(action, index, roll) {
   const label = action.label;
   const selected = index === roll.actionIndex;
-  const accent = roll.previewColor || ANSI.gold;
+  const accent = roll.previewColor ?? ANSI.gold;
   if (action.id === "add" && roll.savedToCollection) {
     return selected
       ? `${ANSI.bold}${ANSI.green}[${label}]${ANSI.reset}`
@@ -16,41 +17,40 @@ function renderAction(action, index, roll) {
   return selected ? `${ANSI.bold}${accent}[${label}]${ANSI.reset}` : label;
 }
 
-export function renderRollView(state) {
+export function renderRollView(state, terminal = {}) {
   const { roll } = state;
+  const { innerWidth } = getScreenMetrics(terminal);
   const bodyLines = [];
+  const centerLine = (line) => centerVisible(line, innerWidth);
 
   if (roll.phase === "spinning") {
-    bodyLines.push(centerVisible(`${ANSI.dim}${ANSI.gray}Scanning capsule signal...${ANSI.reset}`, 50), "");
+    bodyLines.push(centerLine(`${ANSI.dim}${ANSI.gray}Reading Claude state...${ANSI.reset}`));
     bodyLines.push("");
-    bodyLines.push(...renderSprite(roll.previewSpecies, roll.previewEye, "none").split("\n"));
+    bodyLines.push(...centerBlockLines(renderSprite(roll.previewSpecies, roll.previewEye, "none").split("\n"), innerWidth));
     bodyLines.push("");
-    bodyLines.push(centerVisible("░░░ READING SOUL BONES ░░░", 50));
+    bodyLines.push(centerLine("░░░ DERIVING BUDDY PROFILE ░░░"));
   } else if (roll.phase === "rarity") {
     bodyLines.push("");
-    bodyLines.push(centerVisible(`${ANSI.bold}${roll.previewColor}${roll.previewStars || STARS[roll.previewRarity]} ${roll.previewRarity.toUpperCase()}${ANSI.reset}`, 50));
+    bodyLines.push(centerLine(`${ANSI.bold}${roll.previewColor}${roll.previewStars || STARS[roll.previewRarity]} ${roll.previewRarity.toUpperCase()}${ANSI.reset}`));
     bodyLines.push("");
-    bodyLines.push(centerVisible(`${roll.previewBurst}`, 50));
+    bodyLines.push(centerLine(`${roll.previewBurst}`));
   } else if (roll.phase === "revealed" && roll.buddy) {
-    bodyLines.push(centerVisible(`${ANSI.bold}${roll.previewColor}${roll.previewStars || STARS[roll.buddy.rarity]} ${roll.buddy.rarity.toUpperCase()}${ANSI.reset}`, 50));
+    bodyLines.push(centerLine(`${ANSI.bold}${roll.previewColor}${roll.previewStars || STARS[roll.buddy.rarity]} ${roll.buddy.rarity.toUpperCase()}${ANSI.reset}`));
+    bodyLines.push(...centerUniformBlockLines(showBuddyCard(roll.buddy, { useAnsi: true }).split("\n"), innerWidth));
     bodyLines.push("");
-    bodyLines.push(...showBuddyCard(roll.buddy, { useAnsi: true }).split("\n"));
+    bodyLines.push(centerLine(`${ANSI.dim}Equip = save + apply | Add = collection only${ANSI.reset}`));
     bodyLines.push("");
-    bodyLines.push(centerVisible(`${ANSI.dim}Equip = add + use now | Add = save only${ANSI.reset}`, 50));
-    bodyLines.push("");
-    bodyLines.push(
-      ROLL_ACTIONS.map((action, index) => renderAction(action, index, roll)).join("   ")
-    );
+    bodyLines.push(centerLine(ROLL_ACTIONS.map((action, index) => renderAction(action, index, roll)).join("   ")));
   } else {
-    bodyLines.push("No active roll.");
+    bodyLines.push("No active reveal.");
   }
 
   return {
-    title: "ROLL STAGE",
-    subtitle: "Handheld reveal chamber",
+    title: "ROLL",
+    subtitle: "Claude buddy reveal",
     bodyLines,
-    footer: roll.phase === "revealed" ? "<-/-> move  Enter go  E equip  A add  R reroll  Esc/B back" : "Please wait...",
-    palette: roll.previewColor || ANSI.cyan,
-    status: state.statusMessage || "Rolling."
+    footer: roll.phase === "revealed" ? "Arrows move  Enter go  E equip  A add  Esc back" : "Please wait...",
+    palette: roll.previewColor ?? ANSI.cyan,
+    status: state.statusMessage || "Reveal in progress."
   };
 }

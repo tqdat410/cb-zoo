@@ -14,7 +14,7 @@ function sleep(milliseconds) {
 export async function runRollSequence(state, writeScreen) {
   state.screen = "roll";
   state.busy = true;
-  state.statusMessage = "Rolling capsule...";
+  state.statusMessage = "Rolling buddy signal...";
   if (!hasBackup()) {
     backupUuid();
     state.statusMessage = "Backup created before first roll.";
@@ -81,9 +81,8 @@ export async function applyRollAction(state, writeScreen) {
   }
   if (action === "equip") {
     const savedEntry = ensureRollSaved(state);
-    let result;
     try {
-      result = applyUuid(buddy.uuid);
+      applyUuid(buddy.uuid);
     } catch (error) {
       if (savedEntry) {
         try {
@@ -99,13 +98,13 @@ export async function applyRollAction(state, writeScreen) {
     state.screen = "home";
     resetRollState(state);
     state.statusMessage = savedEntry
-      ? `Added and equipped ${buddy.species}. ${result.warning}`
-      : `Equipped ${buddy.species}. ${result.warning}`;
+      ? `Collected + equipped ${buddy.species}. Restart Claude Code.`
+      : `Equipped ${buddy.species}. Restart Claude Code.`;
     return;
   }
   if (action === "add") {
     const savedEntry = ensureRollSaved(state);
-    state.statusMessage = savedEntry ? "Buddy added to collection." : "Buddy already added for this roll.";
+    state.statusMessage = savedEntry ? "Buddy saved to collection." : "Buddy already saved for this roll.";
     return;
   }
   if (action === "reroll") {

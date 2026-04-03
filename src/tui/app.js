@@ -3,8 +3,16 @@ import { renderHandheldScreen } from "./render-layout.js";
 import { createKeypressHandler } from "./controller.js";
 import { createInitialState, renderScreen } from "./state.js";
 
+function getTerminalSnapshot() {
+  return {
+    columns: process.stdout.columns ?? 80,
+    rows: process.stdout.rows ?? 24
+  };
+}
+
 function writeScreen(state) {
-  process.stdout.write(renderHandheldScreen(renderScreen(state)));
+  const terminal = getTerminalSnapshot();
+  process.stdout.write(renderHandheldScreen(renderScreen(state, terminal), terminal));
 }
 
 function enterAlternateScreen() {

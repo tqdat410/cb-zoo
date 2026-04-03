@@ -108,3 +108,13 @@ export function updateCompanionMetadata(updates, options = {}) {
     }
   };
 }
+
+export function resetCompanionProfile(options = {}) {
+  const { configFile, config } = resolveClaudeState({ configFile: options.configFile, requireWritableConfig: true });
+  getEditableCompanionFromConfig(config);
+  const uuid = getUuidFromConfig(config, { allowLegacyUserId: true });
+  delete config.companion;
+  delete config.companionMuted;
+  writeJsonFile(configFile, config);
+  return { configFile, uuid };
+}

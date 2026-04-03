@@ -4,7 +4,7 @@ import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "nod
 import { dirname, join } from "node:path";
 import { tmpdir } from "node:os";
 import { spawnSync } from "node:child_process";
-import { updateCompanionMetadata } from "../src/uuid-manager.js";
+import { resetCompanionProfile, updateCompanionMetadata } from "../src/uuid-manager.js";
 
 function withCompanionEnvironment(callback) {
   const baseDir = mkdtempSync(join(tmpdir(), "cb-zoo-companion-"));
@@ -30,6 +30,7 @@ function withCompanionEnvironment(callback) {
           personality: "A methodical tabby that paces when you introduce a bug.",
           hatchedAt: 1775023802769
         },
+        companionMuted: true,
         metadata: { keeps: true }
       },
       null,
@@ -122,6 +123,40 @@ test("updateCompanionMetadata rejects missing companion state", () => {
       "utf8"
     );
     assert.throws(() => updateCompanionMetadata({ name: "Nova" }), /does not contain an editable companion/i);
+  });
+});
+
+test("resetCompanionProfile clears companion metadata but keeps the UUID", () => {
+  withCompanionEnvironment(({ configFile }) => {
+    const result = resetCompanionProfile();
+    const updated = JSON.parse(readFileSync(configFile, "utf8"));
+
+    assert.equal(result.uuid, "73e7fce7-9a2a-40b1-b78e-11571f33011a");
+    assert.equal(updated.oauthAccount.accountUuid, "73e7fce7-9a2a-40b1-b78e-11571f33011a");
+    assert.equal("companion" in updated, false);
+    assert.equal("companionMuted" in updated, false);
+    assert.deepEqual(updated.metadata, { keeps: true });
+  });
+});
+
+test("resetCompanionProfile rejects missing companion state", () => {
+  withCompanionEnvironment(({ configFile }) => {
+    writeFileSync(
+      configFile,
+      JSON.stringify({ oauthAccount: { accountUuid: "73e7fce7-9a2a-40b1-b78e-11571f33011a" } }, null, 2),
+      "utf8"
+    );
+
+    assert.throws(() => resetCompanionProfile(), /does not contain an editable companion/i);
+  });
+});
+
+test("resetCompanionProfile fails closed when the temp path already exists", () => {
+  withCompanionEnvironment(({ configFile }) => {
+    writeFileSync(`${configFile}.tmp`, "placeholder", "utf8");
+
+    assert.throws(() => resetCompanionProfile(), /existing temporary file/i);
+    assert.equal(JSON.parse(readFileSync(configFile, "utf8")).companion.name, "Plinth");
   });
 });
 

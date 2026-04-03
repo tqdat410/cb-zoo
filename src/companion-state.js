@@ -5,9 +5,14 @@ import { rollFrom } from "./buddy-engine.js";
 import { getCompanionFromConfig, getUuidFromConfig, resolveClaudeState } from "./claude-state.js";
 import { renderSprite } from "./sprites.js";
 import { STARS } from "./config.js";
+import { ANSI, getRarityAccent, withAnsiColor, withPersistentAnsiColor } from "./tui/render-helpers.js";
+
+function stripAnsi(value) {
+  return value.replace(/\x1b\[[0-9;?]*[A-Za-z]/g, "");
+}
 
 function padLine(value, width) {
-  return `${value}${" ".repeat(Math.max(0, width - value.length))}`;
+  return `${value}${" ".repeat(Math.max(0, width - stripAnsi(value).length))}`;
 }
 
 function wrapText(value, width = 50) {
@@ -77,9 +82,14 @@ function findLatestCompanionIntro() {
   return null;
 }
 
-function renderStatBar(value) {
+function renderStatBar(value, useAnsi) {
   const filled = Math.max(0, Math.min(10, Math.floor(value / 10)));
-  return `${"█".repeat(filled)}${"░".repeat(10 - filled)}`;
+  const bar = `${"█".repeat(filled)}${"░".repeat(10 - filled)}`;
+  if (!useAnsi) {
+    return bar;
+  }
+  const color = value < 30 ? ANSI.red : value <= 60 ? ANSI.yellow : ANSI.green;
+  return `${color}${bar}${ANSI.reset}`;
 }
 
 function rarityLabel(rarity) {
@@ -100,36 +110,42 @@ export function getCurrentCompanion() {
   };
 }
 
-export function formatCompanionSummary(companion) {
+export function formatCompanionSummary(companion, options = {}) {
+  const useAnsi = options.useAnsi ?? false;
   const buddy = rollFrom(companion.uuid);
   const sprite = renderSprite(buddy.species, buddy.eye, buddy.hat).split("\n");
-  const rarityLine = `${rarityLabel(buddy.rarity)}`;
+  const rarityText = rarityLabel(buddy.rarity);
+  const rarityAccent = getRarityAccent(buddy.rarity).color;
   const speciesLine = buddy.species.toUpperCase();
+  const tintLine = (line) => (useAnsi ? withPersistentAnsiColor(line, rarityAccent) : line);
   const lines = [
-    ` ${rarityLine}${" ".repeat(Math.max(1, 42 - rarityLine.length - speciesLine.length))}${speciesLine}`,
+    ` ${tintLine(`${ANSI.bold}${rarityText}${ANSI.reset}${" ".repeat(Math.max(1, 42 - rarityText.length - speciesLine.length))}${speciesLine}`)}`,
     "",
-    ...sprite.map((line) => `   ${line}`),
+    ...sprite.map((line) => tintLine(`   ${line}`)),
     "",
-    ` ${companion.name}`,
+    tintLine(` ${companion.name}`),
     "",
-    ...wrapText(`"${companion.personality || "No personality text available."}"`, 38).map((line) => ` ${line}`),
+    ...wrapText(`"${companion.personality || "No personality text available."}"`, 38).map((line) => tintLine(` ${line}`)),
     "",
     ...Object.entries(buddy.stats).map(
-      ([name, value]) => ` ${name.padEnd(10)} ${renderStatBar(value)} ${String(value).padStart(3)}`
+      ([name, value]) => tintLine(` ${name.padEnd(10)} ${renderStatBar(value, useAnsi)} ${String(value).padStart(3)}`)
     ),
     "",
-    ` Peak: ${buddy.peak}  Dump: ${buddy.dump}`,
-    ` Total: ${buddy.total}`,
+    tintLine(` Peak: ${buddy.peak}  Dump: ${buddy.dump}`),
+    tintLine(` Total: ${buddy.total}`),
     "",
-    companion.hatchedAt ? ` Hatched: ${new Date(companion.hatchedAt).toISOString()}` : null,
-    ` Eyes: ${buddy.eye}  Hat: ${buddy.hat}`,
-    " Bones regenerated from current UUID"
+    companion.hatchedAt ? tintLine(` Hatched: ${new Date(companion.hatchedAt).toISOString()}`) : null,
+    tintLine(` Eyes: ${buddy.eye}  Hat: ${buddy.hat}  Shiny: ${buddy.shiny ? "yes" : "no"}`),
+    tintLine(" Bones regenerated from current UUID")
   ].filter(Boolean);
   const width = 44;
-  const border = "═".repeat(width);
+  const border = "═".repeat(width + 2);
+  const sideBorder = useAnsi ? withAnsiColor("║", rarityAccent) : "║";
+  const topBorder = useAnsi ? withAnsiColor(`╔${border}╗`, rarityAccent) : `╔${border}╗`;
+  const bottomBorder = useAnsi ? withAnsiColor(`╚${border}╝`, rarityAccent) : `╚${border}╝`;
   return [
-    `╔${border}╗`,
-    ...lines.map((line) => `║ ${padLine(line, width)} ║`),
-    `╚${border}╝`
+    topBorder,
+    ...lines.map((line) => `${sideBorder} ${padLine(line, width)} ${sideBorder}`),
+    bottomBorder
   ].join("\n");
 }

@@ -9,6 +9,8 @@ export const ANSI = {
   cyan: "\x1b[36m",
   magenta: "\x1b[35m",
   gold: "\x1b[33m",
+  epic: "\x1b[38;2;190;39;167m",
+  legendary: "\x1b[38;2;255;170;0m",
   red: "\x1b[31m",
   yellow: "\x1b[33m",
   blue: "\x1b[34m",
@@ -17,28 +19,53 @@ export const ANSI = {
   bgGray: "\x1b[100m"
 };
 
-const RARITY_COLORS = {
-  common: ANSI.gray,
-  uncommon: ANSI.green,
-  rare: ANSI.cyan,
-  epic: ANSI.magenta,
-  legendary: ANSI.gold
-};
+const DEFAULT_RARITY_ACCENT = Object.freeze({
+  color: ANSI.cyan,
+  stars: "",
+  burst: "★ ★ ★ ★ ★ ★ ★ ★"
+});
 
-const RARITY_BURSTS = {
-  common: "· · · · · · · ·",
-  uncommon: "★ ★ ★ ★ ★ ★ ★ ★",
-  rare: "✦ ✦ ✦ ✦ ✦ ✦ ✦ ✦",
-  epic: "✦ ★ ✦ ★ ✦ ★ ✦ ★",
-  legendary: "✦✦✦✦✦✦✦✦✦✦✦✦"
-};
+const RARITY_ACCENTS = Object.freeze({
+  common: Object.freeze({
+    color: "",
+    stars: STARS.common || "",
+    burst: "· · · · · · · ·"
+  }),
+  uncommon: Object.freeze({
+    color: ANSI.green,
+    stars: STARS.uncommon || "",
+    burst: "★ ★ ★ ★ ★ ★ ★ ★"
+  }),
+  rare: Object.freeze({
+    color: ANSI.blue,
+    stars: STARS.rare || "",
+    burst: "✦ ✦ ✦ ✦ ✦ ✦ ✦ ✦"
+  }),
+  epic: Object.freeze({
+    color: ANSI.epic,
+    stars: STARS.epic || "",
+    burst: "✦ ★ ✦ ★ ✦ ★ ✦ ★"
+  }),
+  legendary: Object.freeze({
+    color: ANSI.legendary,
+    stars: STARS.legendary || "",
+    burst: "✦✦✦✦✦✦✦✦✦✦✦✦"
+  })
+});
 
 export function getRarityAccent(rarity) {
-  return {
-    color: RARITY_COLORS[rarity] || ANSI.cyan,
-    stars: STARS[rarity] || "",
-    burst: RARITY_BURSTS[rarity] || "★ ★ ★ ★ ★ ★ ★ ★"
-  };
+  return RARITY_ACCENTS[rarity] ?? DEFAULT_RARITY_ACCENT;
+}
+
+export function withAnsiColor(value, color) {
+  return color ? `${color}${value}${ANSI.reset}` : value;
+}
+
+export function withPersistentAnsiColor(value, color) {
+  if (!color) {
+    return value;
+  }
+  return `${color}${value.replaceAll(ANSI.reset, `${ANSI.reset}${color}`)}${ANSI.reset}`;
 }
 
 export function stripAnsi(value) {
@@ -54,6 +81,32 @@ export function centerVisible(value, width) {
   const visibleLength = stripAnsi(value).length;
   const padding = Math.max(0, Math.floor((width - visibleLength) / 2));
   return `${" ".repeat(padding)}${value}`;
+}
+
+export function centerBlockLines(lines, width) {
+  return lines.map((line) => centerVisible(line, width));
+}
+
+export function centerUniformBlockLines(lines, width) {
+  const maxVisibleWidth = Math.max(0, ...lines.map((line) => stripAnsi(line).length));
+  const padding = Math.max(0, Math.floor((width - maxVisibleWidth) / 2));
+  return lines.map((line) => `${" ".repeat(padding)}${line}`);
+}
+
+export function createBoxLines(lines, contentWidth) {
+  const safeContentWidth = Math.max(8, contentWidth);
+  const wrappedLines = lines.flatMap((line) => {
+    if (!line) {
+      return [""];
+    }
+    return wrapText(line, safeContentWidth);
+  });
+  const measuredWidth = Math.max(1, ...wrappedLines.map((line) => stripAnsi(line).length));
+  return [
+    `┌${"─".repeat(measuredWidth + 2)}┐`,
+    ...wrappedLines.map((line) => `│ ${padVisible(line, measuredWidth)} │`),
+    `└${"─".repeat(measuredWidth + 2)}┘`
+  ];
 }
 
 export function wrapText(value, width) {

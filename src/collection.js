@@ -107,6 +107,15 @@ export function deleteCollectionEntry(entryToRemove) {
   writeCollectionFile(entries);
 }
 
+export function resolveCollectionEntry(entryToFind) {
+  const entries = readCollectionFile();
+  const matchedEntry = entries.find((entry) => sameCollectionEntry(entry, entryToFind));
+  if (!matchedEntry) {
+    throw new Error("Collection entry to apply was not found.");
+  }
+  return matchedEntry;
+}
+
 export function getStats(collection = readCollectionFile()) {
   const uniqueCombos = new Set(collection.map((entry) => `${entry.species}:${entry.rarity}`));
   const shinies = collection.filter((entry) => entry.shiny).length;

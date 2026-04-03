@@ -1,8 +1,9 @@
-import { backupUuid, restoreUuid, updateCompanionMetadata } from "../uuid-manager.js";
+import { deleteCollectionEntry, resolveCollectionEntry } from "../collection.js";
+import { applyUuid, backupUuid, hasBackup, resetCompanionProfile, restoreUuid, updateCompanionMetadata } from "../uuid-manager.js";
 import { getHomeMenuItems } from "./views/home-view.js";
 import { applyRollAction, runRollSequence } from "./roll-flow.js";
 import { getRollActionIndex, ROLL_ACTIONS } from "./roll-config.js";
-import { openEdit, syncCollection, syncCurrent } from "./state.js";
+import { openEdit, resetCollectionPrompt, syncCollection, syncCurrent } from "./state.js";
 
 function isShortcut(key, value) {
   return key.name === "text" && key.value.toLowerCase() === value;
@@ -13,6 +14,10 @@ function getRollShortcutIndex(key) {
     return -1;
   }
   return ROLL_ACTIONS.findIndex((action) => action.shortcut === key.value.toLowerCase());
+}
+
+function getSelectedCollectionEntry(state) {
+  return state.collectionEntries[state.collectionIndex] || null;
 }
 
 async function handleHomeAction(state, writeScreen) {
@@ -33,6 +38,7 @@ async function handleHomeAction(state, writeScreen) {
   }
   if (action === "collection") {
     syncCollection(state);
+    resetCollectionPrompt(state);
     state.screen = "collection";
     state.statusMessage = "Browsing collection.";
     return;
@@ -99,17 +105,70 @@ export function createKeypressHandler(state, writeScreen) {
           openEdit(state);
         }
       } else if (state.screen === "collection") {
-        if (key.name === "escape") {
+        const selectedEntry = getSelectedCollectionEntry(state);
+        if (state.collectionPrompt.mode === "confirm-delete") {
+          if (key.name === "escape" || isShortcut(key, "n")) {
+            resetCollectionPrompt(state);
+            state.statusMessage = "Delete canceled.";
+          } else if ((key.name === "enter" || isShortcut(key, "y")) && selectedEntry) {
+            try {
+              const removedSpecies = selectedEntry.species;
+              deleteCollectionEntry(selectedEntry);
+              syncCollection(state);
+              resetCollectionPrompt(state);
+              state.statusMessage = state.collectionEntries.length > 0
+                ? `${removedSpecies} removed from collection.`
+                : "Collection empty.";
+            } catch (error) {
+              syncCollection(state);
+              resetCollectionPrompt(state);
+              state.screen = "collection";
+              state.statusMessage = error.message;
+            }
+          }
+        } else if (key.name === "escape") {
           state.screen = "home";
+          resetCollectionPrompt(state);
         } else if (key.name === "up" || isShortcut(key, "k")) {
           state.collectionIndex = Math.max(0, state.collectionIndex - 1);
         } else if (key.name === "down" || isShortcut(key, "j")) {
           state.collectionIndex = Math.min(state.collectionEntries.length - 1, state.collectionIndex + 1);
+        } else if ((key.name === "enter" || isShortcut(key, "a")) && selectedEntry) {
+          try {
+            const liveEntry = resolveCollectionEntry(selectedEntry);
+            if (!hasBackup()) {
+              backupUuid();
+            }
+            applyUuid(liveEntry.uuid);
+            syncCurrent(state);
+            state.statusMessage = `Applied ${liveEntry.species}. Restart Claude Code.`;
+          } catch (error) {
+            resetCollectionPrompt(state);
+            state.screen = "collection";
+            state.statusMessage = error.message;
+          }
+        } else if (isShortcut(key, "d") && selectedEntry) {
+          state.collectionPrompt = { mode: "confirm-delete" };
+          state.statusMessage = `Delete ${selectedEntry.species} from collection?`;
         }
       } else if (state.screen === "edit") {
-        if (key.name === "escape") {
+        if (state.edit.confirmReset) {
+          if (key.name === "escape" || isShortcut(key, "n")) {
+            state.edit.confirmReset = false;
+            state.statusMessage = "Reset canceled.";
+          } else if (key.name === "enter" || isShortcut(key, "y")) {
+            const result = resetCompanionProfile();
+            syncCurrent(state);
+            state.edit.confirmReset = false;
+            state.screen = "home";
+            state.statusMessage = `Companion profile reset in ${result.configFile}. Restart Claude Code to re-hatch from current UUID.`;
+          }
+        } else if (key.name === "escape") {
           state.screen = "home";
           state.statusMessage = "Edit cancelled.";
+        } else if (isShortcut(key, "r")) {
+          state.edit.confirmReset = true;
+          state.statusMessage = "Reset companion profile and let Claude regenerate it?";
         } else if (key.name === "tab" || key.name === "up" || key.name === "down") {
           state.edit.activeField = state.edit.activeField === "name" ? "personality" : "name";
         } else if (key.name === "backspace") {
